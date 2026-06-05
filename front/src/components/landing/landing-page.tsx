@@ -20,6 +20,7 @@ import {
   Phone,
   Sparkles,
   Smartphone,
+  Search,
   Facebook,
   Twitter,
   Instagram,
@@ -43,6 +44,7 @@ import {
   Moon,
   Layers,
   CalendarDays,
+  ChevronDown,
   SlidersHorizontal,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -223,24 +225,30 @@ export function LandingPage() {
             {/* Desktop Nav Links */}
             <nav className="hidden lg:flex items-center gap-1">
               {["Home", "Buses", "Routes", "Offers", "Track Booking", "Help"].map(
-                (link, i) => (
-                  <button
-                    key={link}
-                    onClick={() => {
-                      if (i === 0) navigate("/");
-                      if (i === 1) navigate("/buses");
-                      if (i === 2) navigate("/routes");
-                    }}
-                    className={cn(
-                      "px-3 py-2 text-sm font-medium rounded-md transition-colors",
-                      (i === 0 && window.location.pathname === "/") || (i === 1 && window.location.pathname === "/buses") || (i === 2 && window.location.pathname === "/routes")
-                        ? "text-blue-600 bg-blue-50"
-                        : "text-gray-600 hover:text-blue-600 hover:bg-blue-50"
-                    )}
-                  >
-                    {link}
-                  </button>
-                )
+                (link, i) => {
+                  const isActive = (i === 0 && window.location.pathname === "/") || 
+                                   (i === 1 && window.location.pathname === "/buses") || 
+                                   (i === 2 && window.location.pathname === "/routes");
+                  return (
+                    <button
+                      key={link}
+                      onClick={() => {
+                        if (i === 0) navigate("/");
+                        if (i === 1) navigate("/buses");
+                        if (i === 2) navigate("/routes");
+                      }}
+                      className={cn(
+                        "px-4 py-2 text-sm font-semibold transition-colors relative pb-3.5",
+                        isActive ? "text-blue-600" : "text-gray-600 hover:text-blue-600"
+                      )}
+                    >
+                      <span>{link}</span>
+                      {isActive && (
+                        <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-[3px] bg-blue-600 rounded-full" />
+                      )}
+                    </button>
+                  );
+                }
               )}
             </nav>
 
@@ -258,13 +266,22 @@ export function LandingPage() {
               </Button>
             </div>
 
-            {/* Mobile Menu Toggle */}
-            <button
-              className="lg:hidden p-2 rounded-md text-gray-600 hover:text-blue-600 hover:bg-blue-50"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            >
-              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-            </button>
+            {/* Mobile Menu Toggle & Book Now */}
+            <div className="flex lg:hidden items-center gap-2.5">
+              <Button
+                className="relative h-9 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold rounded-full shadow-lg shadow-blue-200 transition-all duration-300 hover:scale-105 active:scale-95 flex items-center gap-1.5 text-xs group overflow-hidden"
+                onClick={() => navigate("/booking")}
+              >
+                <Sparkles className="w-3.5 h-3.5 animate-pulse" />
+                Book Now
+              </Button>
+              <button
+                className="p-2 rounded-md text-gray-600 hover:text-blue-600 hover:bg-blue-50"
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              >
+                {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -310,144 +327,208 @@ export function LandingPage() {
       </header>
 
       {/* ═══ HERO SECTION ═══ */}
-      <section className="relative pt-16">
+      <section className="relative pt-24 pb-36 lg:pt-40 lg:pb-36 min-h-[500px] lg:min-h-[680px] flex flex-col justify-center items-start lg:items-center select-none text-left lg:text-center">
         {/* Background Image */}
         <div className="absolute inset-0 z-0">
           <img
-            src="/hero-bg.png"
+            src="/landing/bus-hero.png"
             alt="Bus travel background"
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover object-center"
           />
-          <div className="absolute inset-0 bg-gradient-to-b from-black-900/70 via-black-900/60 to-black-900/80" />
         </div>
+        {/* Responsive Background Overlay: Dark on mobile, white overlay on desktop */}
+        <div className="absolute inset-0 bg-black/40 lg:bg-white/10 lg:backdrop-blur-[0.5px] z-0"></div>
 
-        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-0 sm:py-24 lg:py-32">
-          <div className="text-center mb-10 sm:mb-14">
-            <h1 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold text-white leading-tight mb-4 sm:mb-6">
-              Your Journey,
-              <br />
-              Our Priority
-            </h1>
-            <p className="text-base sm:text-lg lg:text-xl text-blue-100 max-w-2xl mx-auto">
-              Book bus tickets easily with best prices and comfortable journey.
-            </p>
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full flex flex-col items-start lg:items-center justify-center gap-4">
+          {/* Capsule Tag */}
+          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-slate-900/60 backdrop-blur-xs text-white border border-slate-700/50 lg:bg-blue-50 lg:text-blue-600 lg:border-blue-100 select-none shadow-xs">
+            <Sparkles className="w-3.5 h-3.5 text-blue-400 lg:text-blue-500" />
+            Your Journey, Our Priority
           </div>
 
-          {/* Search Form */}
-          <div className="max-w-4xl mx-auto bg-white rounded-2xl shadow-2xl p-4 sm:p-6 relative">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 relative">
-              {/* From */}
-              <Popover open={fromOpen} onOpenChange={setFromOpen}>
-                <PopoverTrigger asChild>
-                  <div className="flex items-center gap-3 p-3 rounded-xl border border-gray-200 hover:border-blue-300 transition-colors cursor-pointer w-full">
-                    <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
-                      <MapPin className="w-5 h-5 text-blue-600" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs text-gray-400 font-medium">From</p>
-                      <p className="text-sm font-semibold text-gray-900">{searchParams.from}</p>
-                      <p className="text-xs text-gray-400">Departure City</p>
-                    </div>
-                  </div>
-                </PopoverTrigger>
-                <PopoverContent className="w-64 p-3 bg-white border border-gray-100 shadow-xl rounded-xl z-50">
-                  <div className="space-y-2">
-                    <input
-                      type="text"
-                      placeholder="Search departure city..."
-                      value={fromSearchQuery}
-                      onChange={(e) => setFromSearchQuery(e.target.value)}
-                      className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-blue-500"
-                      autoFocus
-                    />
-                    <div className="max-h-48 overflow-y-auto space-y-1">
-                      {loadingCities ? (
-                        <p className="text-xs text-gray-400 p-2">Loading cities...</p>
-                      ) : filteredFromCities.length === 0 ? (
-                        <p className="text-xs text-gray-400 p-2">No cities found</p>
-                      ) : (
-                        filteredFromCities.map((city: string) => (
-                          <button
-                            key={city}
-                            type="button"
-                            onClick={() => {
-                              setSearchParams(prev => ({ ...prev, from: city }));
-                              setFromSearchQuery("");
-                              setFromOpen(false);
-                            }}
-                            className="w-full text-left px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors"
-                          >
-                            {city}
-                          </button>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                </PopoverContent>
-              </Popover>
+          {/* Heading (Wrapped on mobile, single line on desktop) */}
+          <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-tight flex flex-col lg:flex-row gap-0.5 lg:gap-3 text-left lg:text-center">
+            <span className="text-white lg:text-blue-600">Travel Easy,</span>
+            <span className="text-blue-600 ">Travel Better</span>
+          </h1>
 
-              {/* Swap Button */}
-              <button
-                type="button"
-                onClick={handleSwapCities}
-                className="absolute lg:left-[23.5%] sm:left-[47%] left-[85%] top-[18%] sm:top-[28%] lg:top-[33%] -translate-x-1/2 z-20 w-8 h-8 rounded-full bg-white border border-gray-200 shadow-md flex items-center justify-center hover:bg-blue-50 active:scale-95 transition-all"
-                title="Swap Cities"
-              >
-                <ArrowLeftRight className="w-4 h-4 text-blue-600" />
-              </button>
+          {/* Description Paragraph */}
+          <p className="text-sm sm:text-base text-blue-900 lg:text-slate-650 font-semibold max-w-2xl leading-relaxed text-left lg:text-center mt-1">
+            Book comfortable bus journeys across India with ease.
+          </p>
 
-              {/* To */}
-              <Popover open={toOpen} onOpenChange={setToOpen}>
-                <PopoverTrigger asChild>
-                  <div className="flex items-center gap-3 p-3 rounded-xl border border-gray-200 hover:border-blue-300 transition-colors cursor-pointer w-full">
-                    <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
-                      <MapPin className="w-5 h-5 text-blue-600" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs text-gray-400 font-medium">To</p>
-                      <p className="text-sm font-semibold text-gray-900">{searchParams.to}</p>
-                      <p className="text-xs text-gray-400">Destination City</p>
-                    </div>
-                  </div>
-                </PopoverTrigger>
-                <PopoverContent className="w-64 p-3 bg-white border border-gray-100 shadow-xl rounded-xl z-50">
-                  <div className="space-y-2">
-                    <input
-                      type="text"
-                      placeholder="Search destination city..."
-                      value={toSearchQuery}
-                      onChange={(e) => setToSearchQuery(e.target.value)}
-                      className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-blue-500"
-                      autoFocus
-                    />
-                    <div className="max-h-48 overflow-y-auto space-y-1">
-                      {loadingCities ? (
-                        <p className="text-xs text-gray-400 p-2">Loading cities...</p>
-                      ) : filteredToCities.length === 0 ? (
-                        <p className="text-xs text-gray-400 p-2">No cities found</p>
-                      ) : (
-                        filteredToCities.map((city: string) => (
-                          <button
-                            key={city}
-                            type="button"
-                            onClick={() => {
-                              setSearchParams(prev => ({ ...prev, to: city }));
-                              setToSearchQuery("");
-                              setToOpen(false);
-                            }}
-                            className="w-full text-left px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors"
-                          >
-                            {city}
-                          </button>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                </PopoverContent>
-              </Popover>
+          {/* Mobile Search Button (visible only on mobile) */}
+          <Button
+            className="lg:hidden h-10 px-6 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-full shadow-lg shadow-blue-500/20 flex items-center gap-2 mt-2 text-xs"
+            onClick={() => {
+              document.getElementById("search-section")?.scrollIntoView({ behavior: "smooth" });
+            }}
+          >
+            <Search className="w-3.5 h-3.5 text-white" />
+            Search Buses
+          </Button>
+        </div>
+      </section>
 
-              {/* Date */}
-              <div className="relative flex items-center gap-3 p-3 rounded-xl border border-gray-200 hover:border-blue-300 transition-colors cursor-pointer">
+      {/* ═══ SEARCH & STATS SECTION ═══ */}
+      <section id="search-section" className="py-8 lg:py-12 bg-slate-50 border-b border-slate-100 w-full relative z-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col gap-6 lg:gap-8 w-full">
+          {/* Search Form Card (Overlaps Hero Section on Mobile) */}
+          <div className="max-w-5xl mx-auto bg-white rounded-3xl shadow-xl shadow-slate-200/50 p-4 lg:p-8 relative w-full border border-slate-100/85 -mt-28 lg:mt-0">
+            {/* Top Capsule Tab (Desktop) */}
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 hidden lg:flex">
+              <div className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-blue-600 text-white text-xs font-black shadow-lg shadow-blue-200 border border-blue-500 uppercase tracking-wider">
+                <Bus className="w-4 h-4" />
+                Find Your Perfect Bus
+              </div>
+            </div>
+
+            {/* Inline Header (Mobile) */}
+            <div className="flex lg:hidden items-center gap-2.5 mb-4 pb-3 border-b border-slate-100">
+              <div className="w-9 h-9 bg-blue-600 rounded-lg flex items-center justify-center shrink-0 shadow-md shadow-blue-250">
+                <Bus className="w-4 h-4 text-white" />
+              </div>
+              <div className="text-left leading-tight">
+                <h2 className="text-sm font-extrabold text-slate-900">Find Your Perfect Bus</h2>
+                <p className="text-[10px] text-slate-400 font-semibold mt-0.5">Search buses, compare and book tickets</p>
+              </div>
+            </div>
+
+            {/* Dotted Line Path Decoration with Sliding Bus (Desktop) */}
+            <div className="absolute top-[38px] left-[15%] right-[15%] h-[1px] border-t-2 border-dashed border-slate-100 pointer-events-none select-none hidden lg:block" />
+            <div className="absolute top-9 left-1/2 -translate-x-1/2 w-[70%] hidden lg:flex items-center justify-between pointer-events-none select-none z-10">
+              <MapPin className="w-4 h-4 text-blue-400 opacity-60" />
+              <div className="flex-1 border-t-2 border-dashed border-blue-200 mx-2 relative">
+                <div className="absolute -top-3.5 left-1/3 w-8 h-8 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center shadow-xs">
+                  <Bus className="w-4 h-4 text-blue-600" />
+                </div>
+              </div>
+              <MapPin className="w-4 h-4 text-blue-400 opacity-60" />
+            </div>
+
+            {/* Responsive Input Fields Container */}
+            <div className="flex flex-col lg:grid lg:grid-cols-4 gap-2.5 lg:gap-4 relative pt-1 lg:pt-3">
+              {/* Wrapper for From, To and Swap button to ensure robust vertical centering on mobile */}
+              <div className="relative flex flex-col gap-2.5 lg:contents">
+                {/* From Popover */}
+                <Popover open={fromOpen} onOpenChange={setFromOpen}>
+                  <PopoverTrigger asChild>
+                    <div className="flex items-center justify-between p-2.5 lg:p-3.5 rounded-2xl border border-slate-200 bg-white hover:border-blue-400 hover:shadow-md transition-all cursor-pointer w-full select-none gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-8 h-8 lg:w-10 lg:h-10 rounded-lg lg:rounded-xl bg-blue-50 flex items-center justify-center shrink-0 border border-blue-100">
+                          <MapPin className="w-4 h-4 lg:w-5 lg:h-5 text-blue-600" />
+                        </div>
+                        <div className="min-w-0 text-left">
+                          <p className="text-[9px] lg:text-[10px] text-slate-400 font-bold uppercase tracking-wider">FROM</p>
+                          <p className="text-sm lg:text-base font-extrabold text-slate-900 truncate leading-tight mt-0.5">{searchParams.from}</p>
+                          <p className="text-[9px] lg:text-[10px] text-slate-400 font-semibold mt-0.5">Departure City</p>
+                        </div>
+                      </div>
+                      <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
+                    </div>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-64 p-3 bg-white border border-slate-150 shadow-xl rounded-xl z-50">
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        placeholder="Search departure city..."
+                        value={fromSearchQuery}
+                        onChange={(e) => setFromSearchQuery(e.target.value)}
+                        className="w-full h-9 px-3 rounded-lg border border-slate-200 text-xs focus:outline-none focus:border-blue-500"
+                        autoFocus
+                      />
+                      <div className="max-h-48 overflow-y-auto space-y-1">
+                        {loadingCities ? (
+                          <p className="text-xs text-gray-400 p-2">Loading cities...</p>
+                        ) : filteredFromCities.length === 0 ? (
+                          <p className="text-xs text-gray-400 p-2">No cities found</p>
+                        ) : (
+                          filteredFromCities.map((city: string) => (
+                            <button
+                              key={city}
+                              type="button"
+                              onClick={() => {
+                                setSearchParams(prev => ({ ...prev, from: city }));
+                                setFromSearchQuery("");
+                                setFromOpen(false);
+                              }}
+                              className="w-full text-left px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors"
+                            >
+                              {city}
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+
+                {/* Swap Button (Centered vertically on mobile between From and To cards) */}
+                <button
+                  type="button"
+                  onClick={handleSwapCities}
+                  className="absolute left-1/2 top-1/2 lg:left-[25%] lg:top-[50%] -translate-x-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-white border border-slate-200 shadow-md flex items-center justify-center hover:bg-blue-50 hover:scale-105 active:scale-95 transition-all cursor-pointer"
+                  title="Swap Cities"
+                >
+                  <ArrowLeftRight className="w-4 h-4 text-blue-600 rotate-90 lg:rotate-0" />
+                </button>
+
+                {/* To Popover */}
+                <Popover open={toOpen} onOpenChange={setToOpen}>
+                  <PopoverTrigger asChild>
+                    <div className="flex items-center justify-between p-2.5 lg:p-3.5 rounded-2xl border border-slate-200 bg-white hover:border-blue-400 hover:shadow-md transition-all cursor-pointer w-full select-none gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-8 h-8 lg:w-10 lg:h-10 rounded-lg lg:rounded-xl bg-blue-50 flex items-center justify-center shrink-0 border border-blue-100">
+                          <MapPin className="w-4 h-4 lg:w-5 lg:h-5 text-blue-600" />
+                        </div>
+                        <div className="min-w-0 text-left">
+                          <p className="text-[9px] lg:text-[10px] text-slate-400 font-bold uppercase tracking-wider">TO</p>
+                          <p className="text-sm lg:text-base font-extrabold text-slate-900 truncate leading-tight mt-0.5">{searchParams.to}</p>
+                          <p className="text-[9px] lg:text-[10px] text-slate-400 font-semibold mt-0.5">Destination City</p>
+                        </div>
+                      </div>
+                      <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
+                    </div>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-64 p-3 bg-white border border-slate-150 shadow-xl rounded-xl z-50">
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        placeholder="Search destination city..."
+                        value={toSearchQuery}
+                        onChange={(e) => setToSearchQuery(e.target.value)}
+                        className="w-full h-9 px-3 rounded-lg border border-slate-200 text-xs focus:outline-none focus:border-blue-500"
+                        autoFocus
+                      />
+                      <div className="max-h-48 overflow-y-auto space-y-1">
+                        {loadingCities ? (
+                          <p className="text-xs text-gray-400 p-2">Loading cities...</p>
+                        ) : filteredToCities.length === 0 ? (
+                          <p className="text-xs text-gray-400 p-2">No cities found</p>
+                        ) : (
+                          filteredToCities.map((city: string) => (
+                            <button
+                              key={city}
+                              type="button"
+                              onClick={() => {
+                                setSearchParams(prev => ({ ...prev, to: city }));
+                                setToSearchQuery("");
+                                setToOpen(false);
+                              }}
+                              className="w-full text-left px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors"
+                            >
+                              {city}
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              {/* Date Input */}
+              <div className="relative flex items-center justify-between p-2.5 lg:p-3.5 rounded-2xl border border-slate-200 bg-white hover:border-blue-400 hover:shadow-md transition-all cursor-pointer select-none gap-3">
                 <input
                   type="date"
                   value={searchParams.date}
@@ -455,33 +536,39 @@ export function LandingPage() {
                   className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10"
                   min={new Date().toISOString().split("T")[0]}
                 />
-                <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
-                  <Calendar className="w-5 h-5 text-blue-600" />
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-8 h-8 lg:w-10 lg:h-10 rounded-lg lg:rounded-xl bg-blue-50 flex items-center justify-center shrink-0 border border-blue-100">
+                    <Calendar className="w-4 h-4 lg:w-5 lg:h-5 text-blue-600" />
+                  </div>
+                  <div className="min-w-0 text-left">
+                    <p className="text-[9px] lg:text-[10px] text-slate-400 font-bold uppercase tracking-wider">JOURNEY DATE</p>
+                    <p className="text-sm lg:text-base font-extrabold text-slate-900 truncate leading-tight mt-0.5">
+                      {formatDisplayDate(searchParams.date)}, {getDayOfWeek(searchParams.date)}
+                    </p>
+                  </div>
                 </div>
-                <div className="min-w-0">
-                  <p className="text-xs text-gray-400 font-medium">Journey Date</p>
-                  <p className="text-sm font-semibold text-gray-900">{formatDisplayDate(searchParams.date)}</p>
-                  <p className="text-xs text-gray-400">{getDayOfWeek(searchParams.date)}</p>
-                </div>
+                <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
               </div>
 
-              {/* Passengers */}
+              {/* Passengers Popover */}
               <Popover>
                 <PopoverTrigger asChild>
-                  <div className="flex items-center gap-3 p-3 rounded-xl border border-gray-200 hover:border-blue-300 transition-colors cursor-pointer">
-                    <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
-                      <Users className="w-5 h-5 text-blue-600" />
+                  <div className="flex items-center justify-between p-2.5 lg:p-3.5 rounded-2xl border border-slate-200 bg-white hover:border-blue-400 hover:shadow-md transition-all cursor-pointer w-full select-none gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-8 h-8 lg:w-10 lg:h-10 rounded-lg lg:rounded-xl bg-blue-50 flex items-center justify-center shrink-0 border border-blue-100">
+                        <Users className="w-4 h-4 lg:w-5 lg:h-5 text-blue-600" />
+                      </div>
+                      <div className="min-w-0 text-left">
+                        <p className="text-[9px] lg:text-[10px] text-slate-400 font-bold uppercase tracking-wider">PASSENGERS</p>
+                        <p className="text-sm lg:text-base font-extrabold text-slate-900 truncate leading-tight mt-0.5">
+                          {searchParams.passengers} Passenger{searchParams.passengers > 1 ? "s" : ""}
+                        </p>
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-xs text-gray-400 font-medium">Passengers</p>
-                      <p className="text-sm font-semibold text-gray-900">
-                        {searchParams.passengers} Passenger{searchParams.passengers > 1 ? "s" : ""}
-                      </p>
-                      <p className="text-xs text-gray-400">Select</p>
-                    </div>
+                    <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
                   </div>
                 </PopoverTrigger>
-                <PopoverContent className="w-56 p-4 bg-white border border-gray-100 shadow-xl rounded-xl z-50">
+                <PopoverContent className="w-56 p-4 bg-white border border-slate-150 shadow-xl rounded-xl z-50">
                   <div className="space-y-3">
                     <p className="text-xs font-bold text-gray-700 uppercase tracking-wider">Number of Passengers</p>
                     <div className="flex items-center justify-between">
@@ -490,7 +577,7 @@ export function LandingPage() {
                           e.stopPropagation();
                           setSearchParams(prev => ({ ...prev, passengers: Math.max(1, prev.passengers - 1) }));
                         }}
-                        className="w-8 h-8 rounded-full border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-50 active:scale-95 transition-all text-sm font-bold"
+                        className="w-8 h-8 rounded-full border border-gray-250 flex items-center justify-center text-gray-600 hover:bg-gray-50 active:scale-95 transition-all text-sm font-bold"
                         type="button"
                       >
                         -
@@ -501,7 +588,7 @@ export function LandingPage() {
                           e.stopPropagation();
                           setSearchParams(prev => ({ ...prev, passengers: Math.min(6, prev.passengers + 1) }));
                         }}
-                        className="w-8 h-8 rounded-full border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-50 active:scale-95 transition-all text-sm font-bold"
+                        className="w-8 h-8 rounded-full border border-gray-250 flex items-center justify-center text-gray-600 hover:bg-gray-50 active:scale-95 transition-all text-sm font-bold"
                         type="button"
                       >
                         +
@@ -513,16 +600,46 @@ export function LandingPage() {
               </Popover>
             </div>
 
-            {/* Search Button */}
-            <div className="mt-4">
+            {/* Search Button and Filter slider row */}
+            <div className="mt-4 lg:mt-6 flex items-center gap-3.5">
               <Button
-                className="w-full h-12 text-base font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-xl gap-2"
+                className="flex-1 h-12 text-sm font-black uppercase tracking-wider bg-blue-600 hover:bg-blue-700 text-white rounded-xl gap-2 shadow-lg shadow-blue-100 transition-all hover:scale-101 active:scale-98"
                 onClick={handleSearch}
               >
-                <ArrowLeftRight className="w-5 h-5" />
+                <Search className="w-4 h-4 text-white" />
                 Search Buses
               </Button>
+              <button
+                type="button"
+                className="hidden lg:flex w-12 h-12 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 items-center justify-center text-slate-700 hover:scale-102 active:scale-95 transition-all cursor-pointer shadow-sm"
+                title="Filters"
+              >
+                <SlidersHorizontal className="w-4.5 h-4.5" />
+              </button>
             </div>
+          </div>
+
+          {/* Floating Stats Bar (Responsive row with vertical dividers) */}
+          <div className="max-w-4xl mx-auto bg-white border border-slate-150 shadow-xl py-4 px-2 lg:px-6 mt-2 rounded-2xl flex flex-row justify-between items-center w-full select-none">
+            {[
+              { val: "10,000+", label: "Happy Customers", icon: Users, col: "text-blue-600", bg: "bg-blue-50" },
+              { val: "50+", label: "Routes on Road", icon: Route, col: "text-purple-600", bg: "bg-purple-50" },
+              { val: "100+", label: "Buses Connected", icon: Bus, col: "text-emerald-600", bg: "bg-emerald-50" },
+              { val: "4.8", label: "Customer Rating", icon: Star, col: "text-amber-500", bg: "bg-amber-50" }
+            ].map((stat, idx) => {
+              const StatIcon = stat.icon;
+              return (
+                <div key={idx} className="flex flex-col lg:flex-row items-center gap-1.5 lg:gap-3 flex-1 min-w-[70px] justify-center border-r last:border-r-0 border-slate-100">
+                  <div className={cn("w-10 h-10 rounded-full flex items-center justify-center shrink-0", stat.bg)}>
+                    <StatIcon className={cn("w-4.5 h-4.5", stat.col)} />
+                  </div>
+                  <div className="text-center lg:text-left leading-none">
+                    <p className="text-[11px] lg:text-sm font-black text-slate-800">{stat.val}</p>
+                    <p className="text-[8.5px] lg:text-[10px] text-slate-400 font-bold mt-1 lg:mt-1.5">{stat.label}</p>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       </section>
@@ -1407,119 +1524,144 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* ═══ EXCITING OFFERS ═══ */}
-      <section className="bg-white py-10 sm:py-14">
+      {/* ═══ BHINDER FEATURES BANNER SECTION ═══ */}
+      <section className="bg-[#F8FAFF] pt-10 sm:pt-16 pb-0">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-6 sm:mb-8">
-            <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1.5">
-              Exciting Offers For You
-            </h2>
-            <p className="text-sm text-gray-500">Grab the best deals on bus bookings</p>
-          </div>
-
-          {/* Offer Cards - 1x4 Row with Images */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Offer 1 - Travel More */}
-            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-700 to-blue-900 text-white hover:scale-[1.02] transition-transform duration-200 cursor-pointer">
+          <div className="bg-white rounded-[32px] border border-slate-100 shadow-xl overflow-hidden grid grid-cols-1 lg:grid-cols-2 gap-8 items-center p-5 sm:p-8 lg:p-12 relative w-full">
+            
+            {/* Left Column - Image Container with floating badge */}
+            <div className="relative w-full h-[280px] sm:h-[360px] lg:h-[480px] rounded-2xl overflow-hidden shrink-0 shadow-md">
               <img
-                src="/landing/offer-bus.png"
-                alt="Bus travel"
-                className="w-full h-[140px] object-cover object-center opacity-90"
+                src="/landing/hero-bus.png"
+                alt="Bhinder Premium Bus"
+                className="w-full h-full object-cover object-center"
               />
-              <div className="p-4">
-                <div className="flex items-center gap-1.5 mb-1.5">
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span className="text-[11px] font-semibold opacity-90">Use Code: FIRST15</span>
+              {/* Floating Safe & Secure Card */}
+              <div className="absolute bottom-4 left-4 bg-white/95 backdrop-blur-xs p-3.5 sm:p-4 rounded-2xl shadow-lg border border-slate-100/50 flex items-center gap-3 max-w-[220px] sm:max-w-[250px]">
+                <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 border border-blue-100">
+                  <Shield className="w-5 h-5" />
                 </div>
-                <h3 className="text-base font-bold mb-1">Travel More Spend Less</h3>
-                <p className="text-xs opacity-90 mb-3">Get up to 15% OFF on bus ticket bookings</p>
-                <Button
-                  size="sm"
-                  className="bg-amber-500 hover:bg-amber-600 text-gray-900 text-xs font-bold rounded-md"
-                  onClick={() => navigate("/booking")}
-                >
-                  Book Now
-                </Button>
+                <div className="text-left leading-tight">
+                  <p className="text-xs sm:text-sm font-extrabold text-slate-900">Safe & Secure</p>
+                  <p className="text-[10px] text-slate-400 font-semibold mt-0.5">Your safety is our top priority</p>
+                </div>
               </div>
             </div>
 
-            {/* Offer 2 - Weekend */}
-            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-orange-500 to-amber-600 text-white hover:scale-[1.02] transition-transform duration-200 cursor-pointer">
-              <img
-                src="/landing/offer-suitcase.png"
-                alt="Weekend travel"
-                className="w-full h-[140px] object-cover object-center opacity-90"
-              />
-              <div className="p-4">
-                <div className="flex items-center gap-1.5 mb-1.5">
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span className="text-[11px] font-semibold opacity-90">Use Code: SAVE100</span>
-                </div>
-                <h3 className="text-base font-bold mb-1">Weekend Offer</h3>
-                <p className="text-xs opacity-90 mb-3">Flat ₹100 OFF on min booking of ₹500</p>
-                <Button
-                  size="sm"
-                  className="bg-amber-500 hover:bg-amber-600 text-gray-900 text-xs font-bold rounded-md"
-                  onClick={() => navigate("/booking")}
-                >
-                  Book Now
-                </Button>
+            {/* Right Column - Text & Features */}
+            <div className="flex flex-col items-start gap-4 sm:gap-6 text-left">
+              {/* Top Tag Badge */}
+              <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-blue-50 text-blue-600 border border-blue-100 shadow-xs">
+                <Bus className="w-3.5 h-3.5 text-blue-600" />
+                Bhinder Bus Service
               </div>
+
+              {/* Heading */}
+              <h2 className="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight leading-tight">
+                Travel Easy, Travel Better with <span className="text-blue-600">Bhinder</span>
+              </h2>
+
+              {/* Description */}
+              <p className="text-xs sm:text-sm text-slate-500 font-semibold leading-relaxed">
+                We make every journey comfortable, safe, and memorable. Book your bus tickets with ease and enjoy premium service across multiple routes.
+              </p>
+
+              {/* Grid of 4 Feature Items */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5 w-full mt-1.5">
+                {/* Feature 1: Comfortable Journey */}
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 border border-blue-100 flex items-center justify-center shrink-0 shadow-xs">
+                    {/* Bus Seating SVG */}
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+                      <path d="M7 4h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H7" />
+                      <path d="M7 18H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2" />
+                      <path d="M16 11h3a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2h-3" />
+                      <path d="M6 18v3M14 18v3" />
+                    </svg>
+                  </div>
+                  <div className="text-left leading-tight">
+                    <h4 className="text-[13px] font-extrabold text-slate-900">Comfortable Journey</h4>
+                    <p className="text-[10px] text-slate-400 font-semibold mt-1 leading-normal">
+                      Premium buses with spacious seating and modern amenities.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Feature 2: Safe & Reliable */}
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 border border-blue-100 flex items-center justify-center shrink-0 shadow-xs">
+                    <Shield className="w-5 h-5" />
+                  </div>
+                  <div className="text-left leading-tight">
+                    <h4 className="text-[13px] font-extrabold text-slate-900">Safe & Reliable</h4>
+                    <p className="text-[10px] text-slate-400 font-semibold mt-1 leading-normal">
+                      Trained drivers and well-maintained buses for your safety.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Feature 3: Easy Booking */}
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 border border-blue-100 flex items-center justify-center shrink-0 shadow-xs">
+                    {/* Ticket SVG */}
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+                      <path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z" />
+                      <path d="M13 5v14M9 5v14" />
+                    </svg>
+                  </div>
+                  <div className="text-left leading-tight">
+                    <h4 className="text-[13px] font-extrabold text-slate-900">Easy Booking</h4>
+                    <p className="text-[10px] text-slate-400 font-semibold mt-1 leading-normal">
+                      Book tickets in just a few clicks through our simple process.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Feature 4: 24/7 Support */}
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 border border-blue-100 flex items-center justify-center shrink-0 shadow-xs">
+                    <Headphones className="w-5 h-5" />
+                  </div>
+                  <div className="text-left leading-tight">
+                    <h4 className="text-[13px] font-extrabold text-slate-900">24/7 Customer Support</h4>
+                    <p className="text-[10px] text-slate-400 font-semibold mt-1 leading-normal">
+                      We're here to help you anytime, anywhere on your journey.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Bottom Mini-Stats Bar */}
+              <div className="w-full mt-4 bg-blue-50/40 rounded-2xl border border-blue-100/50 p-3 flex flex-row items-center justify-between gap-3 flex-wrap sm:flex-nowrap">
+                {[
+                  { val: "10,000+", label: "Happy Customers", icon: Users, col: "text-blue-600" },
+                  { val: "50+", label: "Buses on Road", icon: Bus, col: "text-blue-600" },
+                  { val: "100+", label: "Routes Covered", icon: Route, col: "text-blue-600" },
+                  { val: "4.8", label: "Customer Rating", icon: Star, col: "text-amber-500" }
+                ].map((stat, idx) => {
+                  const StatIcon = stat.icon;
+                  return (
+                    <div key={idx} className="flex items-center gap-2.5 flex-1 min-w-[110px] justify-center sm:justify-start">
+                      <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center border border-blue-100 shadow-xs shrink-0">
+                        <StatIcon className={cn("w-4 h-4", stat.col)} />
+                      </div>
+                      <div className="text-left leading-none">
+                        <p className="text-xs sm:text-sm font-black text-slate-800">{stat.val}</p>
+                        <p className="text-[8.5px] sm:text-[9.5px] text-slate-400 font-bold mt-1">{stat.label}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
             </div>
 
-            {/* Offer 3 - Summer */}
-            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-sky-400 to-cyan-600 text-white hover:scale-[1.02] transition-transform duration-200 cursor-pointer">
-              <img
-                src="/landing/offer-summer.png"
-                alt="Summer vacation"
-                className="w-full h-[140px] object-cover object-center opacity-90"
-              />
-              <div className="p-4">
-                <div className="flex items-center gap-1.5 mb-1.5">
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span className="text-[11px] font-semibold opacity-90">Use Code: SUMMER20</span>
-                </div>
-                <h3 className="text-base font-bold mb-1">Summer Bonanza</h3>
-                <p className="text-xs opacity-90 mb-3">Up to 20% OFF on selected routes</p>
-                <Button
-                  size="sm"
-                  className="bg-amber-500 hover:bg-amber-600 text-gray-900 text-xs font-bold rounded-md"
-                  onClick={() => navigate("/booking")}
-                >
-                  Book Now
-                </Button>
-              </div>
-            </div>
-
-            {/* Offer 4 - App Only */}
-            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-500 to-blue-700 text-white hover:scale-[1.02] transition-transform duration-200 cursor-pointer">
-              <img
-                src="/landing/offer-app.png"
-                alt="App download"
-                className="w-full h-[140px] object-cover object-center opacity-90"
-              />
-              <div className="p-4">
-                <div className="flex items-center gap-1.5 mb-1.5">
-                  <Smartphone className="w-3.5 h-3.5" />
-                  <span className="text-[11px] font-semibold opacity-90">Use Code: APPONLY</span>
-                </div>
-                <h3 className="text-base font-bold mb-1">Exclusive App Only Offers</h3>
-                <p className="text-xs opacity-90 mb-3">Extra discounts on App bookings</p>
-                <Button
-                  size="sm"
-                  className="bg-amber-500 hover:bg-amber-600 text-gray-900 text-xs font-bold rounded-md"
-                  onClick={() => navigate("/booking")}
-                >
-                  Book Now
-                </Button>
-              </div>
-            </div>
           </div>
         </div>
       </section>
 
       {/* ═══ TESTIMONIALS ═══ */}
-      <section className="bg-gray-50 py-14 sm:py-20">
+      <section className="bg-gray-50 pt-[30px] pb-0">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-10">
             <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">
@@ -1572,22 +1714,106 @@ export function LandingPage() {
       </section>
 
       {/* ═══ TRUSTED PARTNERS ═══ */}
-      <section className="bg-gray-50 py-10 sm:py-14">
+      <section className="bg-white pt-[30px] pb-10 sm:pb-14">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-8">
-            <h2 className="text-lg sm:text-xl font-bold text-gray-900">Our Trusted Partners</h2>
-          </div>
-          <div className="flex flex-wrap items-center justify-center gap-6 sm:gap-10">
-            {["Paytm", "PhonePe", "GPay", "UPI", "Razorpay", "VeriSign", "MasterCard", "VISA"].map(
-              (partner) => (
+          <div className="bg-[#F4F8FF] rounded-[32px] p-6 sm:p-8 border border-blue-50/40 flex flex-col items-center">
+            
+            {/* Styled Header */}
+            <div className="text-center mb-6 sm:mb-8">
+              <div className="inline-flex items-center gap-2.5 text-xs sm:text-sm font-black uppercase tracking-widest text-slate-800">
+                <span className="text-blue-600 text-base">•••</span>
+                Our Trusted Partners
+                <span className="text-blue-600 text-base">•••</span>
+              </div>
+            </div>
+
+            {/* Partners Grid */}
+            <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-5 w-full">
+              {[
+                {
+                  id: "paytm",
+                  logo: (
+                    <svg viewBox="0 0 100 32" className="h-6 w-auto">
+                      <text x="0" y="24" fill="#00b9f5" fontFamily="sans-serif" fontWeight="900" fontSize="24" fontStyle="italic">pay</text>
+                      <text x="44" y="24" fill="#002e6e" fontFamily="sans-serif" fontWeight="900" fontSize="24" fontStyle="italic">tm</text>
+                    </svg>
+                  )
+                },
+                {
+                  id: "phonepe",
+                  logo: (
+                    <svg viewBox="0 0 120 32" className="h-6.5 w-auto">
+                      <rect x="2" y="4" width="24" height="24" rx="6" fill="#5f259f" />
+                      <path d="M14 8h-3v10h3v-3.5h2.5c1.5 0 2.5-1 2.5-2.5V11c0-1.5-1-3-2.5-3Zm-0.5 4h1c0.5 0 0.8.3.8.8v1.4c0 .5-.3.8-.8.8h-1Z" fill="#ffffff" />
+                      <text x="34" y="22" fill="#5f259f" fontFamily="sans-serif" fontWeight="900" fontSize="16">PhonePe</text>
+                    </svg>
+                  )
+                },
+                {
+                  id: "gpay",
+                  logo: (
+                    <svg viewBox="0 0 130 32" className="h-6.5 w-auto">
+                      <g transform="translate(2, 4)">
+                        <path d="M12 9.5v3h4.6c-.2 1.2-.9 2.2-2 3l2.6 2c1.5-1.4 2.4-3.5 2.4-6 0-.6-.05-1.2-.15-1.8H12Z" fill="#4285F4" />
+                        <path d="M12 20c2.2 0 4-1 5.3-2.6l-2.6-2c-.7.5-1.6.8-2.7.8-2 0-3.8-1.4-4.4-3.3l-2.7 2C6.2 17.5 8.9 20 12 20Z" fill="#34A853" />
+                        <path d="M7.6 12.9a5 5 0 0 1 0-3l-2.7-2c-.6 1.2-.9 2.5-.9 3.9s.3 2.7.9 3.9l2.7-2.8Z" fill="#FBBC05" />
+                        <path d="M12 4c1.2 0 2.3.4 3.1 1.2l2.3-2.3C16 1.8 14.2 1 12 1 8.9 1 6.2 3.5 4.9 6.2l2.7 2C8.2 5.4 10 4 12 4Z" fill="#EA4335" />
+                      </g>
+                      <text x="34" y="22" fill="#5f6368" fontFamily="sans-serif" fontWeight="bold" fontSize="15">Google Pay</text>
+                    </svg>
+                  )
+                },
+                {
+                  id: "upi",
+                  logo: (
+                    <svg viewBox="0 0 100 32" className="h-6 w-auto">
+                      <text x="2" y="22" fill="#0f80bb" fontFamily="sans-serif" fontWeight="900" fontSize="20" fontStyle="italic">UPI</text>
+                      <text x="2" y="30" fill="#f26f21" fontFamily="sans-serif" fontWeight="bold" fontSize="6" letterSpacing="0.2">UNIFIED PAYMENTS INTERFACE</text>
+                      <path d="M72 6 L86 16 L72 26 L78 16 Z" fill="#f26f21" />
+                      <path d="M80 6 L94 16 L80 26 L86 16 Z" fill="#0f80bb" />
+                    </svg>
+                  )
+                },
+                {
+                  id: "razorpay",
+                  logo: (
+                    <svg viewBox="0 0 120 32" className="h-6 w-auto">
+                      <path d="M12 4 L24 16 L12 28 L4 16 Z" fill="#0b72e7" opacity="0.1" />
+                      <path d="M4 16 L16 8 L12 22 Z" fill="#0b72e7" />
+                      <path d="M12 22 L20 16 L16 8 Z" fill="#052c65" />
+                      <text x="32" y="22" fill="#0a2540" fontFamily="sans-serif" fontWeight="900" fontSize="16">Razorpay</text>
+                    </svg>
+                  )
+                },
+                {
+                  id: "visa",
+                  logo: (
+                    <svg viewBox="0 0 80 32" className="h-6 w-auto">
+                      <text x="4" y="24" fill="#1a1f71" fontFamily="sans-serif" fontWeight="900" fontSize="24" fontStyle="italic" letterSpacing="-1">VISA</text>
+                      <polygon points="4,11 12,11 10,14 6,14" fill="#f7b600" />
+                    </svg>
+                  )
+                },
+                {
+                  id: "mastercard",
+                  logo: (
+                    <svg viewBox="0 0 80 32" className="h-6.5 w-auto">
+                      <circle cx="20" cy="16" r="11" fill="#eb001b" opacity="0.95" />
+                      <circle cx="33" cy="16" r="11" fill="#ff5f00" opacity="0.9" />
+                      <text x="48" y="20" fill="#222222" fontFamily="sans-serif" fontWeight="bold" fontSize="9">mastercard</text>
+                    </svg>
+                  )
+                }
+              ].map((partner) => (
                 <div
-                  key={partner}
-                  className="flex items-center justify-center px-4 py-2 bg-white rounded-lg border border-gray-100 shadow-sm text-sm font-semibold text-gray-500 hover:text-blue-600 hover:border-blue-200 transition-colors"
+                  key={partner.id}
+                  className="flex items-center justify-center px-4 py-2 bg-white rounded-2xl border border-slate-100/80 shadow-xs hover:shadow-md hover:border-blue-200 transition-all duration-300 w-[125px] sm:w-[145px] h-[54px] shrink-0"
                 >
-                  {partner}
+                  {partner.logo}
                 </div>
-              )
-            )}
+              ))}
+            </div>
+
           </div>
         </div>
       </section>

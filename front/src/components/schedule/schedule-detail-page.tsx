@@ -75,11 +75,6 @@ const formatTime12h = (timeStr: string) => {
 const getImageUrl = (path: string, busId?: number) => {
   if (!path) return `/bus-${busId || 1}.png`;
   
-  // If it is a low-res hashed image (ends with .jpg or contains long hashed filename)
-  if (path.endsWith(".jpg") || (path.includes("buses/") && !path.includes("bus-"))) {
-    return `/bus-${busId || 1}.png`;
-  }
-  
   if (path.startsWith("http://") || path.startsWith("https://") || path.startsWith("data:")) return path;
   const cleanPath = path.startsWith("/") ? path.substring(1) : path;
   const storageUrl = import.meta.env.VITE_STORAGE_URL || "http://localhost:8000/storage";
@@ -186,12 +181,6 @@ export function ScheduleDetailPage() {
   ];
 
   const droppingPoints = [
-    ...(schedule.stops || [])
-      .filter((stop: any) => stop.stop_name.toLowerCase() !== schedule.from.toLowerCase() && stop.stop_name.toLowerCase() !== schedule.to.toLowerCase())
-      .map((stop: any) => ({
-        name: stop.stop_name,
-        time: formatTime12h(stop.departure_time || stop.arrival_time)
-      })),
     { name: `${schedule.to} (Destination)`, time: schedule.arr }
   ];
 
@@ -206,6 +195,7 @@ export function ScheduleDetailPage() {
       passengers: 1,
     };
     localStorage.setItem("search_params", JSON.stringify(searchParams));
+    localStorage.setItem("selected_schedule_id", String(schedule.id));
     navigate("/booking");
   };
 

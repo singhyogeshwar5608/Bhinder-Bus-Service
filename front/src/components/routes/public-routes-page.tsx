@@ -499,11 +499,7 @@ export function PublicRoutesPage() {
 
 /* ═══════════════════════════════════════════════
    ROUTE VIEW DIALOG (matching admin style)
-   ═══════════════════════════════════════════════ */
-function RouteViewDialog({ route, open, onOpenChange }: { route: any, open: boolean, onOpenChange: (open: boolean) => void }) {
-  if (!route) return null;
-
-  const mainDetails = [
+   ══════════════════�  const mainDetails = [
     { label: "From City", value: route.from_city, icon: MapPin, color: "text-blue-600", bg: "bg-blue-50" },
     { label: "Arrival Time", value: route.from_city_arrival_time || "N/A", icon: Clock, color: "text-blue-500", bg: "bg-blue-50/50" },
     { label: "To City", value: route.to_city, icon: MapPin, color: "text-emerald-600", bg: "bg-emerald-50" },
@@ -516,54 +512,58 @@ function RouteViewDialog({ route, open, onOpenChange }: { route: any, open: bool
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] p-0 overflow-hidden bg-white border-0 shadow-2xl rounded-2xl">
-        <DialogHeader className="p-6 pb-0">
+      <DialogContent className="w-[calc(100%-2rem)] md:w-full max-w-3xl max-h-[90vh] p-0 overflow-hidden bg-white border-0 shadow-2xl rounded-2xl">
+        <DialogHeader className="p-4 sm:p-6 pb-0">
           <DialogTitle className="text-xl font-bold flex items-center gap-2 text-gray-900">
             <Route className="w-5 h-5 text-blue-600" />
             Route Details
           </DialogTitle>
         </DialogHeader>
 
-        <ScrollArea className="p-6 max-h-[calc(90vh-80px)] text-gray-700">
-          <div className="space-y-8">
+        <ScrollArea className="p-4 sm:p-6 max-h-[calc(90vh-80px)] text-gray-700">
+          <div className="space-y-6 sm:space-y-8">
             {/* Header Section */}
-            <div className="bg-gray-50 rounded-2xl p-6 border border-gray-100">
-              <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-                <div className="text-center md:text-left">
-                  <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest mb-1">Starting Point</p>
-                  <h3 className="text-2xl font-black text-gray-950">{route.from_city}</h3>
-                  <div className="flex items-center justify-center md:justify-start gap-1.5 mt-1 text-gray-500">
-                    <Clock className="w-3.5 h-3.5 text-gray-400" />
-                    <span className="text-sm font-medium">{route.from_city_arrival_time || "Time not set"}</span>
+            <div className="bg-gray-50 rounded-2xl p-4 sm:p-6 border border-gray-100">
+              <div className="flex items-center justify-between gap-2 sm:gap-6">
+                <div className="text-left min-w-0 flex-1">
+                  <p className="text-[9px] sm:text-[10px] font-bold text-blue-600 uppercase tracking-widest mb-0.5">Starting Point</p>
+                  <h3 className="text-base sm:text-2xl font-black text-gray-950 leading-tight truncate">{route.from_city}</h3>
+                  <div className="flex items-center gap-1 mt-0.5 text-gray-500">
+                    <Clock className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-gray-400 shrink-0" />
+                    <span className="text-[10px] sm:text-sm font-medium truncate">{route.from_city_arrival_time || "Time not set"}</span>
                   </div>
                 </div>
 
-                <div className="flex flex-col items-center gap-1 flex-1 px-4">
+                <div className="flex flex-col items-center gap-0.5 flex-1 px-1 sm:px-4 min-w-[65px] sm:min-w-none">
                   <div className="w-full h-px bg-dashed border-t border-dashed border-gray-300 relative">
-                    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center shadow-sm">
-                      <ArrowRight className="w-4 h-4 text-blue-500" />
+                    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-6 sm:w-8 h-6 sm:h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center shadow-sm">
+                      <ArrowRight className="w-3 sm:w-4 h-3 sm:h-4 text-blue-500" />
                     </div>
                   </div>
-                  <span className="text-[10px] font-bold text-gray-400 uppercase mt-4">
-                    {route.distance ? `${route.distance} KM` : ""} • {route.time}
+                  <span className="text-[8px] sm:text-[10px] font-bold text-gray-400 uppercase mt-3 sm:mt-4 text-center leading-none">
+                    {route.distance ? `${route.distance} KM` : ""} {route.time ? `• ${route.time}` : ""}
                   </span>
                 </div>
 
-                <div className="text-center md:text-right">
-                  <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest mb-1">Destination</p>
-                  <h3 className="text-2xl font-black text-gray-950">{route.to_city}</h3>
-                  <div className="flex items-center justify-center md:justify-end gap-1.5 mt-1 text-gray-500">
-                    <IndianRupee className="w-3.5 h-3.5 text-gray-400" />
-                    <span className="text-sm font-bold text-blue-600">{route.price}</span>
+                <div className="text-right min-w-0 flex-1">
+                  <p className="text-[9px] sm:text-[10px] font-bold text-emerald-600 uppercase tracking-widest mb-0.5">Destination</p>
+                  <h3 className="text-base sm:text-2xl font-black text-gray-955 leading-tight truncate">{route.to_city}</h3>
+                  <div className="flex items-center justify-end gap-1 mt-0.5 text-gray-500">
+                    <IndianRupee className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-gray-400 shrink-0" />
+                    <span className="text-[10px] sm:text-sm font-bold text-blue-600 truncate">{route.price}</span>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
               {/* Quick Info Grid */}
               <div className="space-y-4">
                 <h4 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                  <div className="w-1 h-4 bg-blue-600 rounded-full" />
+                  General Information
+                </h4>
+                <div className="grid grid-cols-2 gap-3">text-sm font-semibold text-gray-900 flex items-center gap-2">
                   <div className="w-1 h-4 bg-blue-600 rounded-full" />
                   General Information
                 </h4>
@@ -582,7 +582,7 @@ function RouteViewDialog({ route, open, onOpenChange }: { route: any, open: bool
               <div className="space-y-4">
                 <h4 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
                   <div className="w-1 h-4 bg-emerald-600 rounded-full" />
-                  Route Stoppages ({route.stops?.length || 0})
+                  Boarding Points & Fares (to {route.to_city})
                 </h4>
                 <div className="relative pl-6 space-y-6 before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-0.5 before:bg-emerald-100">
                   {route.stops && route.stops.length > 0 ? (
@@ -591,7 +591,14 @@ function RouteViewDialog({ route, open, onOpenChange }: { route: any, open: bool
                         <div className="absolute -left-[21px] top-1.5 w-3 h-3 rounded-full border-2 border-emerald-500 bg-white shadow-sm z-10" />
                         <div className="flex items-center justify-between p-3.5 rounded-xl bg-gray-50/50 border border-gray-100 hover:bg-white hover:border-emerald-200 hover:shadow-sm transition-all group">
                           <div className="space-y-1.5 min-w-0 flex-1">
-                            <p className="text-sm font-bold text-gray-950 truncate">{stop.stop_name}</p>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-bold text-gray-900">
+                                {stop.stop_name}
+                              </span>
+                              <span className="text-[8px] sm:text-[9px] font-black text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded uppercase tracking-wider border border-blue-100/50 shrink-0">
+                                Boarding Only
+                              </span>
+                            </div>
                             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px]">
                               <div className="flex items-center gap-1 bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded font-bold border border-emerald-100">
                                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
@@ -603,10 +610,11 @@ function RouteViewDialog({ route, open, onOpenChange }: { route: any, open: bool
                               </div>
                             </div>
                           </div>
-                          <div className="text-right ml-4">
-                            <span className="text-xs font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg group-hover:bg-emerald-100 transition-colors border border-emerald-100">
+                          <div className="text-right ml-4 flex flex-col items-end gap-1">
+                            <span className="text-xs font-black text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-lg group-hover:bg-emerald-100 transition-colors border border-emerald-100">
                               ₹{stop.fare}
                             </span>
+                            <span className="text-[9px] font-bold text-gray-400">to {route.to_city}</span>
                           </div>
                         </div>
                       </div>

@@ -1,12 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import {
   Bus,
   MapPin,
   ArrowLeft,
   ArrowRight,
-  ArrowLeftRight,
   Shield,
   Lock,
   RotateCcw,
@@ -15,108 +15,114 @@ import {
   Calendar,
   Users,
   Wifi,
-  Plug,
-  Snowflake,
-  Wine,
-  Tv,
-  User,
-  ChevronDown,
-  ChevronUp,
+  Zap,
+  Layers,
+  Droplet,
+  Lightbulb,
+  Wind,
   CheckCircle,
   Star,
   Navigation,
   CreditCard,
-  Phone,
+  User,
+  Check,
+  ChevronDown,
+  Info,
+  Smartphone,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useNavStore } from "@/lib/nav-store";
-import { cn } from "@/lib/utils";
-
-/* ═══════════════════════════════════════════════
-   BUSBOOK BOOKING PAGE - Pixel Perfect
-   ═══════════════════════════════════════════════ */
-
-type SeatStatus = "available" | "booked" | "selected" | "ladies";
-
-interface Seat {
-  id: string;
-  row: number;
-  col: number;
-  status: SeatStatus;
-  price: number;
-}
-
-// Deterministic seed for seat layout
-function seededRandom(seed: number) {
-  const x = Math.sin(seed) * 10000;
-  return x - Math.floor(x);
-}
-
-function generateSeats(): Seat[] {
-  const seats: Seat[] = [];
-  const rows = 8;
-  const cols = ["A", "B", "D", "E"]; // 2 + aisle + 2
-  let seed = 42;
-  for (let r = 1; r <= rows; r++) {
-    for (const col of cols) {
-      seed++;
-      const id = `${r}${col}`;
-      const rand = seededRandom(seed);
-      let status: SeatStatus = "available";
-      if (rand < 0.25) status = "booked";
-      else if (rand < 0.30) status = "ladies";
-      seats.push({ id, row: r, col: cols.indexOf(col), status, price: 650 });
-    }
-  }
-  // Last row - full width (5 seats)
-  for (const col of ["A", "B", "C", "D", "E"]) {
-    seed++;
-    const id = `9${col}`;
-    const rand = seededRandom(seed);
-    let status: SeatStatus = "available";
-    if (rand < 0.3) status = "booked";
-    seats.push({ id, row: 9, col: cols.indexOf(col), status, price: 650 });
-  }
-  return seats;
-}
-
-const BUS_DATA = [
-  { name: "RSRTC", type: "Volvo A/C Semi Sleeper (2+2)", dep: "07:00 AM", depLoc: "Kashmere Gate, Delhi", arr: "12:30 PM", arrLoc: "Sindhi Camp, Jaipur", duration: "5h 30m", nonStop: true, price: 650, seats: 12, amenities: ["A/C", "Charging Point", "Blanket", "Water Bottle", "Pillow"], color: "bg-orange-500", rating: 4.2, popular: true },
-  { name: "Sharma Travels", type: "Volvo A/C Sleeper (2+1)", dep: "08:30 AM", depLoc: "ISBT Kashmere Gate, Delhi", arr: "02:15 PM", arrLoc: "Sindhi Camp, Jaipur", duration: "5h 45m", nonStop: true, price: 750, seats: 8, amenities: ["A/C", "Blanket", "Charging Point", "Water Bottle"], color: "bg-green-600", rating: 4.5, popular: false },
-  { name: "Rajputana Express", type: "A/C Sleeper (2+1)", dep: "09:00 AM", depLoc: "Dhaula Kuan, Delhi", arr: "03:00 PM", arrLoc: "Narayan Singh Circle, Jaipur", duration: "6h 00m", nonStop: false, price: 600, seats: 15, amenities: ["A/C", "Water Bottle", "Charging Point"], color: "bg-blue-700", rating: 3.9, popular: false },
-  { name: "Geetanjali Travels", type: "Volvo A/C Sleeper (2+1)", dep: "10:00 AM", depLoc: "RK Puram, Delhi", arr: "03:30 PM", arrLoc: "Station Road, Jaipur", duration: "5h 30m", nonStop: true, price: 800, seats: 6, amenities: ["A/C", "Blanket", "Water Bottle", "Pillow"], color: "bg-purple-600", rating: 4.7, popular: true },
-  { name: "New Delhi Travels", type: "A/C Semi Sleeper (2+2)", dep: "11:00 AM", depLoc: "Connaught Place, Delhi", arr: "04:45 PM", arrLoc: "Sindhi Camp, Jaipur", duration: "5h 45m", nonStop: false, price: 550, seats: 20, amenities: ["A/C", "Charging Point"], color: "bg-teal-600", rating: 4.0, popular: false },
-];
-
-import { useSearchBuses, useScheduleSeats } from "@/hooks/use-search";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useSearchBuses, useScheduleSeats, useScheduleDetails } from "@/hooks/use-search";
 import { useCreateBooking, useLockSeats } from "@/hooks/use-booking";
 import { toast } from "@/hooks/use-toast";
-import { useNavigate } from "react-router-dom";
+import { cn } from "@/lib/utils";
+
+// Time formatting utility helper
+const formatTime12h = (timeStr: string) => {
+  if (!timeStr) return "--:--";
+  if (timeStr.includes("AM") || timeStr.includes("PM")) return timeStr;
+  
+  const parts = timeStr.split(":");
+  if (parts.length < 2) return timeStr;
+  
+  let hours = parseInt(parts[0]);
+  const minutes = parts[1];
+  const ampm = hours >= 12 ? "PM" : "AM";
+  
+  hours = hours % 12;
+  if (hours === 0) hours = 12;
+  
+  return `${String(hours).padStart(2, '0')}:${minutes} ${ampm}`;
+};
+
+// Image URL generator helper
+const getImageUrl = (path: string, busId?: number) => {
+  if (!path) return `/bus-${busId || 1}.png`;
+  if (path.startsWith("http://") || path.startsWith("https://") || path.startsWith("data:")) return path;
+  const cleanPath = path.startsWith("/") ? path.substring(1) : path;
+  const storageUrl = import.meta.env.VITE_STORAGE_URL || "http://localhost:8000/storage";
+  return `${storageUrl}/${cleanPath}`;
+};
 
 export function BookingPage() {
   const navigate = useNavigate();
+  
+  // Load search parameters
   const [searchParams] = useState(() => {
     const saved = localStorage.getItem("search_params");
     return saved ? JSON.parse(saved) : { from: "Delhi", to: "Jaipur", date: new Date().toISOString().split("T")[0] };
   });
 
+  // Fetch all schedules matching search params
   const { data: schedules, isLoading: searching } = useSearchBuses({
     from_city: searchParams.from,
     to_city: searchParams.to,
     journey_date: searchParams.date,
   });
 
+  // Track currently selected schedule ID (expandedBus)
   const [expandedBus, setExpandedBus] = useState<number | null>(() => {
     const savedId = localStorage.getItem("selected_schedule_id");
-    if (savedId) {
-      localStorage.removeItem("selected_schedule_id");
-      return Number(savedId);
-    }
-    return null;
+    return savedId ? Number(savedId) : null;
   });
+
+  // Set default selected schedule if none is set
+  useEffect(() => {
+    if (schedules && schedules.length > 0 && !expandedBus) {
+      setExpandedBus(schedules[0].id);
+    }
+  }, [schedules, expandedBus]);
+
+  const { data: selectedSchedule, isLoading: loadingScheduleDetails } = useScheduleDetails(expandedBus || undefined);
+
   const [selectedSeats, setSelectedSeats] = useState<string[]>([]);
   const [boardingPoint, setBoardingPoint] = useState<string>("");
   const [droppingPoint, setDroppingPoint] = useState<string>("");
+
+  useEffect(() => {
+    if (selectedSchedule) {
+      if (!boardingPoint) setBoardingPoint(selectedSchedule.from);
+      if (!droppingPoint) setDroppingPoint(selectedSchedule.to);
+    }
+  }, [selectedSchedule, boardingPoint, droppingPoint]);
+
+  // Modal State for Passenger Details Form
+  const [isPassengerModalOpen, setIsPassengerModalOpen] = useState(false);
+  const [customerName, setCustomerName] = useState("");
+  const [customerEmail, setCustomerEmail] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [passengerNames, setPassengerNames] = useState<Record<string, string>>({});
+
+  // Fetch seats for the selected bus
   const { data: seatDataResponse, isLoading: loadingSeats } = useScheduleSeats(expandedBus);
   const seats = seatDataResponse?.seats || [];
 
@@ -126,6 +132,10 @@ export function BookingPage() {
   const toggleSeat = async (seatNumber: string) => {
     if (selectedSeats.includes(seatNumber)) {
       setSelectedSeats(selectedSeats.filter((s) => s !== seatNumber));
+      // Remove from passengerNames map
+      const updatedNames = { ...passengerNames };
+      delete updatedNames[seatNumber];
+      setPassengerNames(updatedNames);
     } else {
       if (selectedSeats.length >= 6) {
         toast({ title: "Limit reached", description: "You can select up to 6 seats only." });
@@ -137,565 +147,766 @@ export function BookingPage() {
         await lockSeatsMutation.mutateAsync({
           schedule_id: expandedBus!,
           seat_numbers: [seatNumber],
-          session_id: "temp-session-id", // In real app, use a proper session id
+          session_id: "temp-session-id",
         });
         setSelectedSeats([...selectedSeats, seatNumber]);
       } catch (error: any) {
-        toast({ title: "Seat Unavailable", description: error.response?.data?.message || "This seat is already locked or booked.", variant: "destructive" });
+        toast({
+          title: "Seat Unavailable",
+          description: error.response?.data?.message || "This seat is already locked or booked.",
+          variant: "destructive"
+        });
       }
     }
   };
 
-  const baseFare = selectedSeats.length * (schedules?.find((s: any) => s.id === expandedBus)?.fare || 0);
-  const serviceFee = Math.round(baseFare * 0.05);
+  // Dynamic fare per seat based on boarding point
+  const selectedStop = selectedSchedule?.stops?.find((s: any) => s.stop_name === boardingPoint);
+  const farePerSeat = selectedStop ? Number(selectedStop.fare) : (selectedSchedule?.fare || 0);
+
+  const baseFare = selectedSeats.length * farePerSeat;
+  const serviceFee = selectedSeats.length > 0 ? 20 : 0; // Flat ₹20 service fee matching mockup
   const totalFare = baseFare + serviceFee;
 
-  const handleBooking = async (passengerDetails: any) => {
+  // Display boarding point details dynamically based on selected boarding point
+  const boardingTime = selectedStop ? formatTime12h(selectedStop.departure_time || selectedStop.arrival_time) : selectedSchedule?.dep;
+  const boardingLocation = boardingPoint || selectedSchedule?.from;
+
+  // Handle final booking submission
+  const handleBookingSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!customerName || !customerPhone || !customerEmail) {
+      toast({ title: "Validation Error", description: "Please fill in all customer contact details.", variant: "destructive" });
+      return;
+    }
+
+    const passengersList = selectedSeats.map((seatNumber) => ({
+      seat_number: seatNumber,
+      passenger_name: passengerNames[seatNumber] || customerName, // Fallback to customer name if empty
+      gender: seatNumber === "A4" || seatNumber === "E4" ? "female" : "male" // Auto-select female for ladies seats
+    }));
+
     try {
       await createBookingMutation.mutateAsync({
-        schedule_id: expandedBus,
-        customer_name: passengerDetails.name,
-        customer_phone: passengerDetails.phone,
-        customer_email: passengerDetails.email,
+        schedule_id: expandedBus!,
+        customer_name: customerName,
+        customer_phone: customerPhone,
+        customer_email: customerEmail,
         seat_numbers: selectedSeats,
         total_amount: totalFare,
-        passengers: passengerDetails.passengers,
+        passengers: passengersList,
       });
-      toast({ title: "Booking Successful", description: "Your tickets have been booked." });
+      toast({ 
+        title: "Booking Successful", 
+        description: `Your tickets from ${boardingLocation} to ${selectedSchedule?.to} have been booked successfully!` 
+      });
+      setSelectedSeats([]);
+      setPassengerNames({});
+      setIsPassengerModalOpen(false);
       navigate("/");
     } catch (error: any) {
-      toast({ title: "Booking Failed", description: error.response?.data?.message || "Something went wrong.", variant: "destructive" });
+      toast({
+        title: "Booking Failed",
+        description: error.response?.data?.message || "Something went wrong during checkout.",
+        variant: "destructive"
+      });
     }
   };
 
+  if (searching || (expandedBus ? loadingScheduleDetails : false)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm font-semibold text-slate-500">Loading schedule details...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!selectedSchedule) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
+        <div className="max-w-md p-6 bg-white rounded-2xl border border-slate-150 text-center shadow-xs">
+          <h2 className="text-xl font-bold text-slate-900 mb-2">No Buses Found</h2>
+          <p className="text-sm text-slate-500 mb-6">
+            We couldn't retrieve any schedules for the route from {searchParams.from} to {searchParams.to} on {searchParams.date}.
+          </p>
+          <Button onClick={() => navigate("/")} className="bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl px-6">
+            Go Back Home
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Format Date Helper
+  const formatDisplayDate = (dateStr: string) => {
+    if (!dateStr) return "";
+    const date = new Date(dateStr);
+    return date.toLocaleDateString("en-IN", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      weekday: "long"
+    });
+  };
+
+  // Structured timeline details dynamically
+  const journeyStops = [
+    {
+      name: selectedSchedule.from,
+      location: `${selectedSchedule.from} Central Terminal, Platform 1`,
+      arrival: "—",
+      departure: selectedSchedule.dep,
+      badge: "Boarding / Start",
+      badgeClass: "bg-emerald-50 text-emerald-700 border-emerald-100",
+      dotClass: "border-emerald-500",
+      fare: selectedSchedule.fare,
+      isBoardingOption: true,
+    },
+    ...(selectedSchedule.stops || []).map((stop: any) => {
+      return {
+        name: stop.stop_name,
+        location: `${stop.stop_name} Bus Stand`,
+        arrival: formatTime12h(stop.arrival_time),
+        departure: formatTime12h(stop.departure_time),
+        badge: "Boarding Only",
+        badgeClass: "bg-blue-50 text-blue-700 border-blue-100",
+        dotClass: "border-blue-500",
+        fare: Number(stop.fare),
+        isBoardingOption: true,
+      };
+    }),
+    {
+      name: selectedSchedule.to,
+      location: `${selectedSchedule.to} Swargate Station, Main Exit`,
+      arrival: selectedSchedule.arr,
+      departure: "—",
+      badge: "Dropping Only",
+      badgeClass: "bg-red-50 text-red-700 border-red-100",
+      dotClass: "border-red-500",
+      isBoardingOption: false,
+    }
+  ];
+
+  // Group seats by rows for seat layout
+  const seatRows: Record<string, any[]> = {};
+  seats.forEach((seat: any) => {
+    const rowChar = seat.seat_number.charAt(0);
+    if (!seatRows[rowChar]) {
+      seatRows[rowChar] = [];
+    }
+    seatRows[rowChar].push(seat);
+  });
+  const sortedRowKeys = Object.keys(seatRows).sort();
+
   return (
-    <div className="min-h-screen flex flex-col bg-[#f4f4f4]">
-      {/* ═══ TOP NAVIGATION BAR ═══ */}
-      <header className="bg-[#d84a34] sticky top-0 z-50 shadow-md">
-        <div className="max-w-[1200px] mx-auto px-4 sm:px-6">
-          <div className="flex items-center justify-between h-14">
-            {/* Logo */}
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => navigate("/")}
-                className="flex items-center gap-2 text-white/80 hover:text-white transition-colors group"
-              >
-                <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-                <span className="font-medium">Modify Search</span>
-              </button>
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-white rounded-md flex items-center justify-center">
-                  <Bus className="w-4 h-4 text-[#d84a34]" />
-                </div>
-                <span className="text-lg font-bold text-white">BusBook</span>
+    <div className="min-h-screen flex flex-col bg-[#F8FAFC] font-sans antialiased text-slate-800">
+      
+      {/* ═══ TOP NAVBAR HEADER ═══ */}
+      <header className="sticky top-0 left-0 right-0 z-50 bg-white border-b border-slate-100 shadow-xs h-16 flex items-center">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => navigate(-1)}
+              className="flex items-center gap-2 text-slate-500 hover:text-blue-600 transition-colors group text-sm font-semibold"
+            >
+              <ArrowLeft className="w-4.5 h-4.5 group-hover:-translate-x-1 transition-transform" />
+              <span>Modify Search</span>
+            </button>
+            <div className="w-px h-5 bg-slate-200" />
+            <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate("/")}>
+              <div className="w-8.5 h-8.5 bg-blue-600 rounded-lg flex items-center justify-center">
+                <Bus className="w-4.5 h-4.5 text-white" />
               </div>
-            </div>
-
-            {/* Nav Links */}
-            <nav className="hidden lg:flex items-center gap-1">
-              {["Home", "Buses", "Routes", "Offers", "Track Booking", "Help"].map((link, i) => (
-                <a
-                  key={link}
-                  href="#"
-                  className={cn(
-                    "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
-                    i === 1 ? "text-white bg-white/20" : "text-white/80 hover:text-white hover:bg-white/10"
-                  )}
-                >
-                  {link}
-                </a>
-              ))}
-            </nav>
-
-            {/* Right Side */}
-            <div className="flex items-center gap-3">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-white/90 hover:text-white hover:bg-white/10 text-xs font-medium h-8"
-              >
-                Download App
-              </Button>
-              <Button
-                size="sm"
-                className="bg-white text-[#d84a34] hover:bg-white/90 text-xs font-bold h-8 rounded"
-              >
-                Login / Signup
-              </Button>
+              <span className="text-xl font-black tracking-tight text-blue-600">BusBook</span>
             </div>
           </div>
+
+          <nav className="hidden lg:flex items-center gap-1.5">
+            {["Home", "Buses", "Routes", "Offers", "Track Booking", "Help"].map((link, i) => (
+              <button
+                key={link}
+                onClick={() => {
+                  if (i === 0) navigate("/");
+                }}
+                className={cn(
+                  "px-4 py-2 text-sm font-bold transition-all duration-150 rounded-full",
+                  i === 1 ? "text-blue-600 bg-blue-50" : "text-slate-600 hover:text-blue-600 hover:bg-slate-50"
+                )}
+              >
+                {link}
+              </button>
+            ))}
+          </nav>
+
+          <div className="hidden sm:block w-4" />
         </div>
       </header>
 
-      {/* ═══ SEARCH FORM BAR ═══ */}
-      <div className="bg-[#1a1a2e] py-4">
-        <div className="max-w-[1200px] mx-auto px-4 sm:px-6">
-          <div className="bg-white rounded-lg shadow-lg p-3 sm:p-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 sm:gap-3">
-              {/* From */}
-              <div className="flex items-center gap-2.5 p-2.5 rounded-lg border border-gray-200 hover:border-[#d84a34]/50 transition-colors cursor-pointer">
-                <div className="w-8 h-8 rounded-full bg-red-50 flex items-center justify-center shrink-0">
-                  <MapPin className="w-4 h-4 text-[#d84a34]" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[10px] text-gray-400 font-medium">From</p>
-                  <p className="text-sm font-bold text-gray-900">{searchParams.from}</p>
-                </div>
-              </div>
-              {/* To */}
-              <div className="flex items-center gap-2.5 p-2.5 rounded-lg border border-gray-200 hover:border-[#d84a34]/50 transition-colors cursor-pointer">
-                <div className="w-8 h-8 rounded-full bg-red-50 flex items-center justify-center shrink-0">
-                  <MapPin className="w-4 h-4 text-[#d84a34]" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[10px] text-gray-400 font-medium">To</p>
-                  <p className="text-sm font-bold text-gray-900">{searchParams.to}</p>
-                </div>
-              </div>
-              {/* Date */}
-              <div className="flex items-center gap-2.5 p-2.5 rounded-lg border border-gray-200 hover:border-[#d84a34]/50 transition-colors cursor-pointer">
-                <div className="w-8 h-8 rounded-full bg-red-50 flex items-center justify-center shrink-0">
-                  <Calendar className="w-4 h-4 text-[#d84a34]" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[10px] text-gray-400 font-medium">Date</p>
-                  <p className="text-sm font-bold text-gray-900">{searchParams.date}</p>
-                </div>
-              </div>
-              {/* Passengers */}
-              <div className="flex items-center gap-2.5 p-2.5 rounded-lg border border-gray-200 hover:border-[#d84a34]/50 transition-colors cursor-pointer">
-                <div className="w-8 h-8 rounded-full bg-red-50 flex items-center justify-center shrink-0">
-                  <Users className="w-4 h-4 text-[#d84a34]" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs text-gray-400 font-medium">Passengers</p>
-                  <p className="text-sm font-bold text-gray-900">
-                    {searchParams.passengers || 1} Passenger{(searchParams.passengers || 1) > 1 ? "s" : ""}
-                  </p>
-                </div>
-              </div>
-              {/* Search Button */}
-              <Button className="bg-[#d84a34] hover:bg-[#c43a24] text-white font-bold rounded-lg h-full min-h-[44px] gap-1.5" disabled={searching}>
-                {searching ? "Searching..." : "Search"}
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ═══ MAIN CONTENT ═══ */}
-      <main className="flex-1">
-        <div className="max-w-[1200px] mx-auto px-4 sm:px-6 py-4 sm:py-6">
-          {/* Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
-            <div>
-              <h1 className="text-lg sm:text-xl font-bold text-gray-900">
-                {searchParams.from} to {searchParams.to}
-              </h1>
-              <div className="flex items-center gap-2 mt-0.5">
-                <span className="text-xs text-gray-500">{searchParams.date}</span>
-                <span className="text-xs text-gray-300">|</span>
-                <span className="text-xs font-semibold text-[#d84a34]">{schedules?.length || 0} Buses Found</span>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[11px] text-gray-500 font-medium">Filter by:</span>
-              {["Departure Time", "Price", "Bus Type", "Amenities"].map((f) => (
-                <select key={f} className="text-[11px] border border-gray-200 rounded px-2 py-1.5 text-gray-600 bg-white focus:outline-none focus:ring-1 focus:ring-[#d84a34] cursor-pointer">
-                  <option>{f}</option>
-                </select>
-              ))}
-              <div className="flex items-center gap-1 ml-1">
-                <span className="text-[11px] text-gray-500 font-medium">Sort by:</span>
-                <select className="text-[11px] border border-[#d84a34]/40 rounded px-2 py-1.5 text-[#d84a34] bg-red-50 focus:outline-none cursor-pointer font-medium">
-                  <option>Departure Time</option>
-                  <option>Price: Low to High</option>
-                  <option>Price: High to Low</option>
-                  <option>Rating</option>
-                </select>
-              </div>
+      {/* ═══ TOP HERO SECTION: ROUTE INFO & SELECTED BUS CARD ═══ */}
+      <section className="bg-white border-b border-slate-100 py-6 select-none">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+          
+          {/* Route Title block */}
+          <div className="text-left shrink-0">
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900">
+              {selectedSchedule.from} to {selectedSchedule.to}
+            </h1>
+            <div className="flex items-center gap-2.5 mt-1">
+              <span className="text-xs text-slate-500 font-bold">{formatDisplayDate(selectedSchedule.date)}</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+              <span className="text-xs font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">
+                {schedules?.length || 12} Buses Found
+              </span>
             </div>
           </div>
 
-          {/* Two Column Layout */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            {/* LEFT - Bus Listings + Seat Selection */}
-            <div className="lg:col-span-2 space-y-3">
-              {searching ? (
-                <div className="bg-white p-8 text-center rounded-lg border border-gray-200">Searching for buses...</div>
-              ) : schedules?.length === 0 ? (
-                <div className="bg-white p-8 text-center rounded-lg border border-gray-200">No buses found for this route and date.</div>
-              ) : (
-                schedules?.map((schedule: any) => (
-                  <div key={schedule.id} className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-                    {/* Bus Card */}
-                    <div className="p-4">
-                      <div className="flex flex-col lg:flex-row lg:items-center gap-3">
-                        {/* Operator */}
-                        <div className="lg:w-[180px] shrink-0">
-                          <div className="flex items-center gap-2 mb-0.5">
-                            <div className={cn("w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 bg-blue-600")}>
-                              {schedule.bus.bus_name.charAt(0)}
-                            </div>
-                            <span className="text-sm font-bold text-gray-900">{schedule.bus.bus_name}</span>
-                          </div>
-                          <p className="text-[11px] text-gray-500">{schedule.bus.bus_type}</p>
-                          <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                            {schedule.bus.amenities?.map((a: string) => (
-                              <span key={a} className="text-[9px] text-gray-500 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100">{a}</span>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Departure */}
-                        <div className="lg:w-[100px] shrink-0">
-                          <p className="text-sm font-bold text-gray-900">{schedule.departure_time}</p>
-                          <p className="text-[10px] text-gray-400">{schedule.route.from_city}</p>
-                        </div>
-
-                        {/* Duration */}
-                        <div className="flex items-center gap-1.5 lg:w-[120px] shrink-0">
-                          <div className="flex-1 flex items-center gap-1">
-                            <div className="w-4 h-px bg-gray-300" />
-                            <div className="flex flex-col items-center">
-                              <span className="text-[9px] text-gray-400 font-medium">{schedule.route.duration}</span>
-                              <ArrowRight className="w-3.5 h-3.5 text-gray-400 -my-0.5" />
-                            </div>
-                            <div className="w-4 h-px bg-gray-300" />
-                          </div>
-                        </div>
-
-                        {/* Arrival */}
-                        <div className="lg:w-[100px] shrink-0">
-                          <p className="text-sm font-bold text-gray-900">{schedule.arrival_time}</p>
-                          <p className="text-[10px] text-gray-400">{schedule.route.to_city}</p>
-                        </div>
-
-                        {/* Badge */}
-                        <div className="lg:w-[60px] shrink-0">
-                          <span className="text-[10px] font-semibold text-green-700 bg-green-50 px-2 py-0.5 rounded border border-green-200">Available</span>
-                        </div>
-
-                        {/* Price + View Seats */}
-                        <div className="flex items-center gap-3 lg:ml-auto lg:shrink-0">
-                          <div className="text-right">
-                            <p className="text-base font-extrabold text-gray-900">₹{schedule.fare}</p>
-                            <div className="flex items-center gap-0.5 justify-end">
-                              <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
-                              <span className="text-[10px] font-semibold text-gray-500">4.5</span>
-                            </div>
-                          </div>
-                          <Button
-                            className={cn(
-                              "text-xs font-bold rounded px-4 h-8",
-                              expandedBus === schedule.id
-                                ? "bg-[#d84a34] hover:bg-[#c43a24] text-white"
-                                : "bg-[#d84a34] hover:bg-[#c43a24] text-white"
-                            )}
-                            onClick={() => {
-                              setExpandedBus(expandedBus === schedule.id ? null : schedule.id);
-                              setSelectedSeats([]);
-                            }}
-                          >
-                            {expandedBus === schedule.id ? "Hide Seats" : "View Seats"}
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Seat Selection Panel (Expandable) */}
-                    {expandedBus === schedule.id && (
-                    <div className="border-t border-gray-200">
-                      <div className="grid grid-cols-1 md:grid-cols-2">
-                        {/* Seat Layout */}
-                        <div className="p-4 border-r border-gray-100">
-                          <div className="flex items-center justify-between mb-3">
-                            <div className="flex items-center gap-2">
-                              <Navigation className="w-3.5 h-3.5 text-[#d84a34]" />
-                              <span className="text-xs font-bold text-gray-800">Select Your Seats</span>
-                            </div>
-                            <span className="text-[11px] font-semibold text-[#d84a34]">
-                              ₹{schedule.fare} per seat
-                            </span>
-                          </div>
-
-                          {/* Seat Legend */}
-                          <div className="flex items-center gap-3 mb-3 flex-wrap">
-                            <div className="flex items-center gap-1">
-                              <div className="w-4 h-4 rounded-sm bg-green-500 border border-green-600" />
-                              <span className="text-[10px] text-gray-500">Available</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <div className="w-4 h-4 rounded-sm bg-blue-600 border border-blue-700" />
-                              <span className="text-[10px] text-gray-500">Selected</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <div className="w-4 h-4 rounded-sm bg-gray-300 border border-gray-400" />
-                              <span className="text-[10px] text-gray-500">Booked</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <div className="w-4 h-4 rounded-sm bg-pink-300 border border-pink-400" />
-                              <span className="text-[10px] text-gray-500">Ladies</span>
-                            </div>
-                          </div>
-
-                          {/* Bus Seat Layout */}
-                          <div className="flex justify-center">
-                            {loadingSeats ? (
-                              <div className="p-8 text-center text-xs text-gray-500">Loading seat layout...</div>
-                            ) : (
-                              <div className="bg-gray-50 rounded-lg border border-gray-200 p-3 inline-block">
-                                {/* Driver + Lower Deck Label */}
-                                <div className="flex items-center justify-between mb-3 px-1">
-                                  <div className="flex items-center gap-1.5">
-                                    <div className="w-7 h-7 rounded bg-gray-600 flex items-center justify-center">
-                                      <User className="w-3.5 h-3.5 text-white" />
-                                    </div>
-                                    <span className="text-[9px] text-gray-400">Driver</span>
-                                  </div>
-                                  <div className="w-14 h-5 rounded bg-blue-100 flex items-center justify-center">
-                                    <span className="text-[9px] text-blue-600 font-bold">LOWER</span>
-                                  </div>
-                                </div>
-
-                                {/* Seat Rows */}
-                                <div className="grid grid-cols-4 gap-2">
-                                  {seats.map((seat: any) => {
-                                    const isSelected = selectedSeats.includes(seat.seat_number);
-                                    const isBooked = seat.is_booked;
-                                    const isLocked = seat.is_locked;
-
-                                    return (
-                                      <button
-                                        key={seat.id}
-                                        onClick={() => toggleSeat(seat.seat_number)}
-                                        disabled={isBooked || (isLocked && !isSelected)}
-                                        className={cn(
-                                          "w-8 h-8 rounded text-[9px] font-bold transition-all duration-100 flex items-center justify-center",
-                                          !isBooked && !isLocked && !isSelected && "bg-green-500 text-white hover:bg-green-600 cursor-pointer",
-                                          isSelected && "bg-blue-600 text-white shadow-sm cursor-pointer",
-                                          isBooked && "bg-gray-300 text-gray-500 cursor-not-allowed",
-                                          isLocked && !isSelected && "bg-amber-400 text-white cursor-not-allowed"
-                                        )}
-                                      >
-                                        {seat.seat_number}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-
-                                {/* Front label */}
-                                <div className="mt-4 text-center">
-                                  <span className="text-[9px] text-gray-400 font-medium uppercase tracking-wider">Front</span>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Boarding & Dropping Points */}
-                        <div className="p-4">
-                          <div className="mb-4">
-                            <h4 className="text-xs font-bold text-gray-800 mb-2 flex items-center gap-1.5">
-                              <MapPin className="w-3.5 h-3.5 text-green-600" />
-                              Boarding Point
-                            </h4>
-                            <div className="space-y-1.5">
-                              {[
-                                { id: "kashmere", name: "Kashmere Gate", time: "07:00 AM", loc: "ISBT Kashmere Gate" },
-                                { id: "dhaula", name: "Dhaula Kuan", time: "07:30 AM", loc: "Dhaula Kuan Metro" },
-                                { id: "rk", name: "RK Puram", time: "07:50 AM", loc: "RK Puram Sector 12" },
-                              ].map((bp) => (
-                                <button
-                                  key={bp.id}
-                                  onClick={() => setBoardingPoint(bp.id)}
-                                  className={cn(
-                                    "w-full text-left p-2.5 rounded-lg border transition-all text-xs",
-                                    boardingPoint === bp.id
-                                      ? "border-[#d84a34] bg-red-50"
-                                      : "border-gray-200 hover:border-gray-300"
-                                  )}
-                                >
-                                  <div className="flex items-center justify-between">
-                                    <div>
-                                      <p className="font-semibold text-gray-900">{bp.name}</p>
-                                      <p className="text-[10px] text-gray-500">{bp.loc}</p>
-                                    </div>
-                                    <span className={cn("font-bold", boardingPoint === bp.id ? "text-[#d84a34]" : "text-gray-600")}>
-                                      {bp.time}
-                                    </span>
-                                  </div>
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-
-                          <div>
-                            <h4 className="text-xs font-bold text-gray-800 mb-2 flex items-center gap-1.5">
-                              <MapPin className="w-3.5 h-3.5 text-red-500" />
-                              Dropping Point
-                            </h4>
-                            <div className="space-y-1.5">
-                              {[
-                                { id: "sindhi", name: "Sindhi Camp", time: "12:30 PM", loc: "Sindhi Camp Bus Stand" },
-                                { id: "narayan", name: "Narayan Singh Circle", time: "12:45 PM", loc: "Narayan Singh Circle" },
-                                { id: "station", name: "Station Road", time: "01:00 PM", loc: "Jaipur Railway Station" },
-                              ].map((dp) => (
-                                <button
-                                  key={dp.id}
-                                  onClick={() => setDroppingPoint(dp.id)}
-                                  className={cn(
-                                    "w-full text-left p-2.5 rounded-lg border transition-all text-xs",
-                                    droppingPoint === dp.id
-                                      ? "border-[#d84a34] bg-red-50"
-                                      : "border-gray-200 hover:border-gray-300"
-                                  )}
-                                >
-                                  <div className="flex items-center justify-between">
-                                    <div>
-                                      <p className="font-semibold text-gray-900">{dp.name}</p>
-                                      <p className="text-[10px] text-gray-500">{dp.loc}</p>
-                                    </div>
-                                    <span className={cn("font-bold", droppingPoint === dp.id ? "text-[#d84a34]" : "text-gray-600")}>
-                                      {dp.time}
-                                    </span>
-                                  </div>
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+          {/* Selected Bus card widget */}
+          <div className="flex-1 w-full bg-white rounded-2xl border border-slate-100 shadow-sm p-4 flex flex-col sm:flex-row items-center gap-5 justify-between">
+            {/* Bus visual */}
+            <div className="flex items-center gap-4 w-full sm:w-auto">
+              <div className="w-24 h-16 rounded-xl overflow-hidden bg-slate-50 border border-slate-100 shrink-0 select-none">
+                <img
+                  src={getImageUrl(selectedSchedule.images?.[0], selectedSchedule.id)}
+                  className="w-full h-full object-cover"
+                  onError={(e) => { e.currentTarget.src = "/bus-1.png"; }}
+                />
+              </div>
+              <div className="text-left min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <h3 className="font-black text-slate-900 text-sm truncate">{selectedSchedule.name}</h3>
+                  <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0 fill-emerald-50/50" />
+                </div>
+                <p className="text-[11px] text-slate-400 font-bold tracking-wide mt-0.5">{selectedSchedule.type}</p>
+                <div className="flex items-center gap-1 mt-1.5 flex-wrap">
+                  {selectedSchedule.amenities?.slice(0, 4).map((a: string) => (
+                    <span key={a} className="text-[9px] font-black text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">{a}</span>
+                  ))}
+                  {selectedSchedule.amenities?.length > 4 && (
+                    <span className="text-[9px] font-black text-blue-600 bg-blue-50 px-1 py-0.5 rounded border border-blue-100">
+                      +{selectedSchedule.amenities.length - 4}
+                    </span>
                   )}
                 </div>
-              ))
-            )}
+              </div>
+            </div>
+
+            {/* Timings row block */}
+            <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-start px-2 py-1 sm:py-0 border-y sm:border-y-0 border-slate-100/80">
+              <div className="text-left">
+                <p className="text-sm font-black text-slate-900">{selectedSchedule.dep}</p>
+                <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">{selectedSchedule.from}</p>
+              </div>
+              <div className="flex items-center gap-1 min-w-[70px] sm:min-w-[90px] shrink-0">
+                <div className="w-full h-px bg-slate-200" />
+                <div className="flex flex-col items-center shrink-0">
+                  <span className="text-[9px] text-slate-400 font-bold whitespace-nowrap">{selectedSchedule.duration}</span>
+                  <div className="w-1.5 h-1.5 rounded-full border border-slate-300 bg-white -my-0.5" />
+                </div>
+                <div className="w-full h-px bg-slate-200" />
+              </div>
+              <div className="text-right">
+                <p className="text-sm font-black text-slate-900">{selectedSchedule.arr}</p>
+                <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">{selectedSchedule.to}</p>
+              </div>
+            </div>
+
+            {/* Price + View details CTA */}
+            <div className="flex items-center justify-between sm:justify-end gap-5 w-full sm:w-auto">
+              <div className="text-left sm:text-right">
+                <p className="text-sm font-black text-slate-900">₹{selectedSchedule.fare}.00</p>
+                <p className="text-[9.5px] text-slate-400 font-bold uppercase tracking-wider leading-none mt-0.5">per seat</p>
+                <div className="flex items-center gap-0.5 mt-1 sm:justify-end">
+                  <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                  <span className="text-[10px] font-black text-slate-600">4.5</span>
+                  <span className="text-[9.5px] text-slate-400 font-bold">(120)</span>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                onClick={() => navigate(`/schedule/${selectedSchedule.id}`)}
+                className="h-9 text-xs font-black text-blue-600 border-blue-150 hover:bg-blue-50 hover:text-blue-700 px-4 rounded-xl transition-all"
+              >
+                View Details
+              </Button>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      {/* ═══ THREE COLUMN MAIN LAYOUT ═══ */}
+      <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+          
+          {/* COLUMN 1: JOURNEY DETAILS */}
+          <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-100 shadow-sm text-left flex flex-col h-full justify-between">
+            <div>
+              <h3 className="text-base font-black text-slate-900 mb-6 flex items-center gap-2">
+                <div className="w-1 h-4 bg-blue-600 rounded-full" />
+                Journey Details
+              </h3>
+
+              {/* Dynamic Timeline Wrapper */}
+              <div className="relative pl-7 space-y-6 before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200/80">
+                {journeyStops.map((stop, sIdx) => {
+                  const isSelected = boardingPoint === stop.name;
+                  const canSelect = stop.isBoardingOption;
+
+                  return (
+                    <div key={sIdx} className="relative">
+                      {/* Circle Pin */}
+                      <div
+                        className={cn(
+                          "absolute -left-[20px] top-4 w-3.5 h-3.5 rounded-full border-2 bg-white transition-all z-10",
+                          isSelected
+                            ? "border-blue-600 bg-blue-600 ring-4 ring-blue-100 scale-110 z-20"
+                            : stop.dotClass || "border-slate-300"
+                        )}
+                      />
+                      
+                      {/* Grid card content */}
+                      <button
+                        type="button"
+                        disabled={!canSelect}
+                        onClick={() => canSelect && setBoardingPoint(stop.name)}
+                        className={cn(
+                          "w-full flex flex-col gap-2 p-3.5 rounded-xl border text-left transition-all duration-150 select-none",
+                          canSelect
+                            ? isSelected
+                              ? "border-blue-500 bg-blue-50/30 shadow-xs ring-2 ring-blue-100/50"
+                              : "border-slate-100 bg-slate-50/40 hover:bg-white hover:border-slate-200 cursor-pointer"
+                            : "border-slate-100 bg-slate-50/20 opacity-80 cursor-default"
+                        )}
+                      >
+                        {/* Row 1: Name and Timing/Badge info */}
+                        <div className="flex items-center justify-between w-full gap-2">
+                          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                            <span className={cn("text-xs sm:text-sm font-black truncate", isSelected ? "text-blue-700" : "text-slate-900")}>
+                              {stop.name}
+                            </span>
+                            {isSelected && (
+                              <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-blue-600 text-white text-[8px] font-black shrink-0 leading-none">
+                                ✓
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            <div className="flex items-center gap-1 text-[10px] text-slate-500 font-bold">
+                              <span>{stop.departure !== "—" ? "Dep:" : "Arr:"}</span>
+                              <span className="text-slate-800 font-black">{stop.departure !== "—" ? stop.departure : stop.arrival}</span>
+                            </div>
+                            <span className={cn("inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider border shrink-0", stop.badgeClass)}>
+                              {stop.badge}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Row 2: Location and Fare */}
+                        <div className="flex items-center justify-between w-full gap-3 text-[10px] border-t border-slate-100/60 pt-2 mt-0.5">
+                          <span className="text-slate-400 font-medium truncate flex-1">
+                            {stop.location}
+                          </span>
+                          
+                          {stop.fare !== undefined && (
+                            <span className={cn(
+                              "font-black px-2 py-0.5 rounded border leading-none shrink-0",
+                              isSelected 
+                                ? "bg-blue-600 border-blue-700 text-white shadow-xs" 
+                                : "bg-blue-50/60 border-blue-100 text-blue-600"
+                            )}>
+                              Fare: ₹{stop.fare}
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Timeline bottom advisory note */}
+            <div className="mt-6 p-3.5 bg-blue-50/40 border border-blue-100 rounded-xl flex items-start gap-2 text-[10px] text-slate-500 font-bold leading-relaxed">
+              <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+              <p>Note: Times are approximate and may vary due to traffic and road conditions.</p>
+            </div>
           </div>
 
-            {/* RIGHT - Booking Summary */}
-            <div className="space-y-3">
-              {/* Trip Details */}
-              <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-                <div className="px-4 py-3 bg-[#d84a34]">
-                  <span className="text-sm font-bold text-white">Booking Summary</span>
+          {/* COLUMN 2: BOOKING SUMMARY */}
+          <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-100 shadow-sm text-left flex flex-col h-full justify-between">
+            <div className="space-y-5">
+              <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                <div className="w-1 h-4 bg-blue-600 rounded-full" />
+                Booking Summary
+              </h3>
+
+              {/* Operator Circle branding */}
+              <div className="flex items-center gap-3 pb-4 border-b border-slate-100">
+                <div className="w-9 h-9 rounded-full bg-orange-500 flex items-center justify-center text-white text-sm font-black shrink-0">
+                  {selectedSchedule.name.charAt(0)}
                 </div>
-                <div className="p-4 space-y-3">
-                  {/* Bus Info */}
-                  <div className="flex items-center gap-2 pb-3 border-b border-gray-100">
-                    <div className="w-8 h-8 rounded-full bg-orange-500 flex items-center justify-center text-white text-xs font-bold">R</div>
-                    <div>
-                      <p className="text-sm font-bold text-gray-900">RSRTC</p>
-                      <p className="text-[10px] text-gray-500">Volvo A/C Semi Sleeper (2+2)</p>
-                    </div>
-                  </div>
-
-                  {/* Route */}
-                  <div className="py-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <div className="w-2 h-2 rounded-full bg-green-500" />
-                      <span className="text-[11px] text-gray-500">07:00 AM</span>
-                      <span className="text-xs font-semibold text-gray-800">Kashmere Gate, Delhi</span>
-                    </div>
-                    <div className="ml-1 border-l-2 border-dashed border-gray-200 h-3" />
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-red-500" />
-                      <span className="text-[11px] text-gray-500">12:30 PM</span>
-                      <span className="text-xs font-semibold text-gray-800">Sindhi Camp, Jaipur</span>
-                    </div>
-                  </div>
-
-                  {/* Details */}
-                  <div className="space-y-1.5 py-2 border-t border-gray-100">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] text-gray-500">Date</span>
-                      <span className="text-[11px] font-semibold text-gray-700">24 May 2024, Friday</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] text-gray-500">Bus</span>
-                      <span className="text-[11px] font-semibold text-gray-700">RSRTC</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] text-gray-500">Seats</span>
-                      <span className="text-[11px] font-semibold text-gray-700">
-                        {selectedSeats.length > 0 ? selectedSeats.join(", ") : "None selected"}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Fare Breakdown */}
-                  <div className="pt-3 border-t border-gray-100 space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] text-gray-500">Base Fare ({selectedSeats.length} × ₹650)</span>
-                      <span className="text-[11px] font-medium text-gray-700">₹{baseFare}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] text-gray-500">Service Fee (5%)</span>
-                      <span className="text-[11px] font-medium text-gray-700">₹{serviceFee}</span>
-                    </div>
-                    <div className="flex items-center justify-between pt-2 border-t border-gray-200">
-                      <span className="text-sm font-bold text-gray-900">Total Amount</span>
-                      <span className="text-lg font-extrabold text-green-600">₹{totalFare}</span>
-                    </div>
-                  </div>
+                <div>
+                  <h4 className="text-sm font-black text-slate-900">{selectedSchedule.name}</h4>
+                  <p className="text-[10.5px] text-slate-400 font-bold tracking-wide mt-0.5">{selectedSchedule.type}</p>
                 </div>
               </div>
 
-              {/* Continue to Book Button */}
+              {/* Small timeline */}
+              <div className="space-y-3 py-1">
+                <div className="flex items-center gap-2.5 text-xs">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                  <span className="font-black text-slate-900 w-16">{boardingTime}</span>
+                  <span className="font-semibold text-slate-500 truncate">{boardingLocation} Bus Stand</span>
+                </div>
+                <div className="ml-1 border-l border-dashed border-slate-300 h-4" />
+                <div className="flex items-center gap-2.5 text-xs">
+                  <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
+                  <span className="font-black text-slate-900 w-16">{selectedSchedule.arr}</span>
+                  <span className="font-semibold text-slate-500 truncate">{selectedSchedule.to} Terminal</span>
+                </div>
+              </div>
+
+              {/* Metadata listing grid */}
+              <div className="space-y-2.5 py-3 border-t border-slate-100 text-xs">
+                <div className="flex items-center justify-between font-bold">
+                  <span className="text-slate-400">Date</span>
+                  <span className="text-slate-900">{formatDisplayDate(selectedSchedule.date)}</span>
+                </div>
+                <div className="flex items-center justify-between font-bold">
+                  <span className="text-slate-400">Bus</span>
+                  <span className="text-slate-900">{selectedSchedule.name}</span>
+                </div>
+                <div className="flex items-center justify-between font-bold">
+                  <span className="text-slate-400">Boarding Point</span>
+                  <span className="text-blue-600 font-black bg-blue-50 px-2 py-0.5 rounded">
+                    {boardingLocation}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between font-bold">
+                  <span className="text-slate-400">Seats</span>
+                  <span className="text-blue-600 font-black bg-blue-50 px-2 py-0.5 rounded">
+                    {selectedSeats.length > 0 ? selectedSeats.join(", ") : "None selected"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Pricing breakdown */}
+              <div className="pt-4 border-t border-slate-100 space-y-2.5">
+                <div className="flex items-center justify-between text-xs font-bold">
+                  <span className="text-slate-400">Base Fare ({selectedSeats.length} × ₹{farePerSeat})</span>
+                  <span className="text-slate-800">₹{baseFare}</span>
+                </div>
+                <div className="flex items-center justify-between text-xs font-bold">
+                  <span className="text-slate-400">Service Fee</span>
+                  <span className="text-slate-800">₹{serviceFee}</span>
+                </div>
+                <div className="flex items-center justify-between pt-3 border-t border-slate-200">
+                  <span className="text-sm font-black text-slate-900">Total Amount</span>
+                  <span className="text-xl font-extrabold text-blue-600">₹{totalFare}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* CTA Continue Booking and trust factor labels */}
+            <div className="space-y-4 pt-6">
               <Button
-                className="w-full h-11 text-sm font-bold bg-[#d84a34] hover:bg-[#c43a24] text-white rounded-lg gap-1.5"
+                onClick={() => setIsPassengerModalOpen(true)}
                 disabled={selectedSeats.length === 0}
+                className="w-full h-11 text-xs font-black bg-blue-600 hover:bg-blue-700 text-white rounded-xl gap-2 shadow-lg shadow-blue-100 transition-all hover:scale-102 active:scale-98 disabled:opacity-50 disabled:scale-100 disabled:shadow-none"
               >
                 Continue to Book
                 <ArrowRight className="w-4 h-4" />
               </Button>
 
-              {/* Security Badges */}
-              <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-3">
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { icon: Shield, label: "Secure & Safe Booking", color: "text-blue-600" },
-                    { icon: Headphones, label: "24x7 Customer Support", color: "text-green-600" },
-                    { icon: RotateCcw, label: "Easy Cancellation", color: "text-orange-500" },
-                    { icon: Lock, label: "Secure Payments", color: "text-purple-600" },
-                    { icon: CheckCircle, label: "Best Price Guarantee", color: "text-teal-600" },
-                    { icon: CreditCard, label: "Multiple Payment Options", color: "text-[#d84a34]" },
-                  ].map((badge) => {
-                    const Icon = badge.icon;
-                    return (
-                      <div key={badge.label} className="flex items-center gap-1.5">
-                        <Icon className={cn("w-3.5 h-3.5 shrink-0", badge.color)} />
-                        <span className="text-[10px] text-gray-600 leading-tight">{badge.label}</span>
-                      </div>
-                    );
-                  })}
-                </div>
+              <div className="grid grid-cols-2 gap-2 text-[9.5px] font-bold text-slate-400 select-none border-t border-slate-100 pt-4">
+                {[
+                  { icon: Shield, label: "Secure & Safe Booking", col: "text-blue-600" },
+                  { icon: Headphones, label: "24/7 Customer Support", col: "text-purple-600" },
+                  { icon: RotateCcw, label: "Easy Cancellation", col: "text-orange-500" },
+                  { icon: Lock, label: "Secure Payments", col: "text-pink-600" },
+                  { icon: CheckCircle, label: "Best Price Guarantee", col: "text-emerald-600" },
+                  { icon: CreditCard, label: "Multiple Payment Options", col: "text-cyan-600" },
+                ].map((item, i) => {
+                  const IconComponent = item.icon;
+                  return (
+                    <div key={i} className="flex items-center gap-1.5">
+                      <IconComponent className={cn("w-3.5 h-3.5", item.col)} />
+                      <span>{item.label}</span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
+
+          {/* COLUMN 3: SELECT YOUR SEATS */}
+          <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-100 shadow-sm text-left flex flex-col justify-between h-full">
+            <div>
+              {/* Header and Seat Price Badge */}
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                  <div className="w-1 h-4 bg-blue-600 rounded-full" />
+                  Select Your Seats
+                </h3>
+                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-black bg-blue-50 text-blue-700 border border-blue-100">
+                  ₹{farePerSeat}.00 per seat
+                </span>
+              </div>
+
+              {/* Legend status indicators */}
+              <div className="flex items-center gap-3.5 mb-5 flex-wrap border-b border-slate-100 pb-4 select-none">
+                {[
+                  { label: "Available", bg: "bg-[#10B981] border-[#059669]" },
+                  { label: "Selected", bg: "bg-blue-600 border-blue-700" },
+                  { label: "Booked", bg: "bg-slate-200 border-slate-300" },
+                  { label: "Ladies", bg: "bg-pink-400 border-pink-500" },
+                ].map((item, i) => (
+                  <div key={i} className="flex items-center gap-1.5 text-[10.5px] font-bold text-slate-500">
+                    <div className={cn("w-3.5 h-3.5 rounded-sm border", item.bg)} />
+                    <span>{item.label}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Custom Bus Seat layout box */}
+              <div className="flex justify-center select-none py-1">
+                {loadingSeats ? (
+                  <div className="p-12 text-center text-xs text-slate-400 font-bold">Loading seat layout...</div>
+                ) : (
+                  <div className="bg-slate-50 border border-slate-150 p-4 rounded-2xl w-full max-w-[280px] flex flex-col justify-between">
+                    
+                    {/* Top deck controls: Driver avatar and Lower Berth Badge */}
+                    <div className="flex items-center justify-between mb-4 border-b border-slate-200/60 pb-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center shadow-xs">
+                          <User className="w-4.5 h-4.5 text-white" />
+                        </div>
+                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Driver</span>
+                      </div>
+                      <span className="text-[9.5px] font-black text-blue-700 bg-blue-100 border border-blue-150 px-2 py-0.5 rounded">
+                        Lower Berth
+                      </span>
+                    </div>
+
+                    {/* Seat Rows mapping - 5 column layout with aisle */}
+                    <div className="space-y-2.5">
+                      {sortedRowKeys.map((rowChar) => {
+                        const rowSeats = seatRows[rowChar] || [];
+                        const s1 = rowSeats.find((s) => s.seat_number === `${rowChar}1`);
+                        const s2 = rowSeats.find((s) => s.seat_number === `${rowChar}2`);
+                        const s3 = rowSeats.find((s) => s.seat_number === `${rowChar}3`);
+                        const s4 = rowSeats.find((s) => s.seat_number === `${rowChar}4`);
+
+                        const renderSeatButton = (seat: any) => {
+                          const isSelected = selectedSeats.includes(seat.seat_number);
+                          const isBooked = seat.is_booked;
+                          const isLocked = seat.is_locked;
+                          const isLadies = seat.seat_number === "A4" || seat.seat_number === "E4";
+
+                          return (
+                            <button
+                              type="button"
+                              onClick={() => toggleSeat(seat.seat_number)}
+                              disabled={isBooked || (isLocked && !isSelected)}
+                              className={cn(
+                                "w-8.5 h-8.5 rounded-lg text-[9.5px] font-black transition-all flex items-center justify-center border",
+                                !isBooked && !isLocked && !isSelected && !isLadies && "bg-[#10B981] border-[#059669] text-white hover:scale-105 active:scale-95 cursor-pointer",
+                                !isBooked && !isLocked && !isSelected && isLadies && "bg-pink-400 border-pink-500 text-white hover:scale-105 active:scale-95 cursor-pointer",
+                                isSelected && "bg-blue-600 border-blue-700 text-white hover:scale-105 active:scale-95 shadow-md cursor-pointer",
+                                isBooked && "bg-slate-200 border-slate-300 text-slate-400 cursor-not-allowed",
+                                isLocked && !isSelected && "bg-amber-400 border-amber-500 text-white cursor-not-allowed"
+                              )}
+                            >
+                              {seat.seat_number}
+                            </button>
+                          );
+                        };
+
+                        return (
+                          <div key={rowChar} className="flex items-center justify-between gap-1">
+                            {/* Left Side: 2 Seats */}
+                            <div className="flex gap-2">
+                              {s1 ? renderSeatButton(s1) : <div className="w-8.5 h-8.5" />}
+                              {s2 ? renderSeatButton(s2) : <div className="w-8.5 h-8.5" />}
+                            </div>
+                            
+                            {/* Center Aisle space */}
+                            <div className="w-4 shrink-0" />
+                            
+                            {/* Right Side: 2 Seats */}
+                            <div className="flex gap-2">
+                              {s3 ? renderSeatButton(s3) : <div className="w-8.5 h-8.5" />}
+                              {s4 ? renderSeatButton(s4) : <div className="w-8.5 h-8.5" />}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Front label with arrow indicator pointing up */}
+                    <div className="mt-5 pt-3 border-t border-slate-200/60 text-center flex items-center justify-center gap-1.5 text-[9.5px] text-slate-400 font-bold tracking-widest uppercase leading-none">
+                      <span>↑</span>
+                      <span>Front</span>
+                    </div>
+
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
         </div>
       </main>
 
-      {/* ═══ FOOTER ═══ */}
-      <footer className="bg-[#1a1a2e] text-gray-400 mt-auto">
-        <div className="max-w-[1200px] mx-auto px-4 sm:px-6 py-4">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 bg-white rounded flex items-center justify-center">
-                <Bus className="w-3.5 h-3.5 text-[#d84a34]" />
-              </div>
-              <span className="text-sm font-bold text-white">BusBook</span>
+      {/* ═══ FOOTER FEATURES VALUES BAR ═══ */}
+      <section className="bg-white border-t border-slate-100 py-6 mt-6 select-none">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 items-center">
+            {[
+              { title: "Live Tracking", desc: "Track your bus in real-time", icon: MapPin, col: "text-emerald-500" },
+              { title: "On-Time Guarantee", desc: "We value your time", icon: Clock, col: "text-blue-500" },
+              { title: "Customer First", desc: "We're here to help you", icon: Headphones, col: "text-purple-500" },
+              { title: "Safe & Reliable Travel", desc: "Your safety is our priority", icon: Shield, col: "text-indigo-500" },
+            ].map((stat, idx) => {
+              const StatIcon = stat.icon;
+              return (
+                <div key={idx} className="flex items-center gap-3 justify-start md:justify-center">
+                  <div className="w-9 h-9 rounded-full bg-slate-50 flex items-center justify-center shrink-0 border border-slate-100">
+                    <StatIcon className={cn("w-4.5 h-4.5", stat.col)} />
+                  </div>
+                  <div className="flex flex-col text-left">
+                    <span className="text-xs font-black text-slate-900 leading-none">{stat.title}</span>
+                    <span className="text-[9.5px] font-bold text-slate-400 mt-1 leading-none">{stat.desc}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* ═══ BASE COPYRIGHT FOOTER ═══ */}
+      <footer className="bg-slate-900 text-slate-400 py-6 select-none">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 bg-blue-600 rounded flex items-center justify-center">
+              <Bus className="w-4 h-4 text-white" />
             </div>
-            <p className="text-[11px] text-gray-500">
-              © 2024 BusBook. All rights reserved. | Terms | Privacy | Refund Policy
-            </p>
-            <div className="flex items-center gap-2">
-              <Shield className="w-3.5 h-3.5 text-green-500" />
-              <span className="text-[11px] text-gray-500">Secure & Verified</span>
-            </div>
+            <span className="text-sm font-black text-white tracking-wide">BusBook</span>
+          </div>
+          <p className="text-[10px] text-slate-500 font-semibold">
+            © 2026 BusBook. All rights reserved. | Terms | Privacy | Refund Policy
+          </p>
+          <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-semibold">
+            <Shield className="w-4 h-4 text-emerald-500 fill-emerald-500/10" />
+            <span>Secure & Verified Checkout</span>
           </div>
         </div>
       </footer>
+
+      {/* ═══ PASSENGER DETAILS FORM MODAL ═══ */}
+      <Dialog open={isPassengerModalOpen} onOpenChange={setIsPassengerModalOpen}>
+        <DialogContent className="sm:max-w-[425px] rounded-2xl bg-white border border-slate-150 p-6">
+          <DialogHeader className="text-left">
+            <DialogTitle className="text-base font-black text-slate-900 flex items-center gap-2">
+              <User className="w-5 h-5 text-blue-600" />
+              Passenger Details
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-400 font-bold mt-1">
+              Please enter checkout info for selected seats: {selectedSeats.join(", ")}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <form onSubmit={handleBookingSubmit} className="space-y-4 mt-3">
+            {/* Customer name */}
+            <div className="space-y-1.5 text-left">
+              <Label htmlFor="cust_name" className="text-xs font-black text-slate-600">Customer Name</Label>
+              <Input
+                id="cust_name"
+                required
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                placeholder="Enter full name"
+                className="h-9 text-xs rounded-xl border-slate-200 focus:border-blue-500 focus:ring-blue-500"
+              />
+            </div>
+
+            {/* Email and Phone */}
+            <div className="grid grid-cols-2 gap-3 text-left">
+              <div className="space-y-1.5">
+                <Label htmlFor="cust_email" className="text-xs font-black text-slate-600">Email Address</Label>
+                <Input
+                  id="cust_email"
+                  type="email"
+                  required
+                  value={customerEmail}
+                  onChange={(e) => setCustomerEmail(e.target.value)}
+                  placeholder="name@email.com"
+                  className="h-9 text-xs rounded-xl border-slate-200 focus:border-blue-500 focus:ring-blue-500"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="cust_phone" className="text-xs font-black text-slate-600">Mobile Number</Label>
+                <Input
+                  id="cust_phone"
+                  type="tel"
+                  required
+                  value={customerPhone}
+                  onChange={(e) => setCustomerPhone(e.target.value)}
+                  placeholder="9876543210"
+                  className="h-9 text-xs rounded-xl border-slate-200 focus:border-blue-500 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            {/* Unique passenger name for each seat */}
+            <div className="border-t border-slate-100 pt-3 space-y-3">
+              <span className="text-[11px] font-black uppercase tracking-wider text-slate-400">Seat Occupant Names</span>
+              
+              <div className="max-h-[160px] overflow-y-auto space-y-2.5 pr-1.5 scrollbar-thin">
+                {selectedSeats.map((seatNumber) => (
+                  <div key={seatNumber} className="flex items-center gap-3">
+                    <span className="w-16 text-xs font-black text-blue-600 bg-blue-50 border border-blue-100 px-2 py-1 rounded-lg text-center shrink-0">
+                      Seat {seatNumber}
+                    </span>
+                    <Input
+                      required
+                      placeholder={`Name for Seat ${seatNumber}`}
+                      value={passengerNames[seatNumber] || ""}
+                      onChange={(e) => setPassengerNames({ ...passengerNames, [seatNumber]: e.target.value })}
+                      className="h-9 text-xs rounded-xl border-slate-200 focus:border-blue-500 focus:ring-blue-500 flex-1"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Modal footer submit buttons */}
+            <DialogFooter className="pt-3 border-t border-slate-100 gap-2 sm:gap-0">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsPassengerModalOpen(false)}
+                className="h-9 text-xs font-bold rounded-xl border-slate-200 text-slate-500"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={createBookingMutation.isPending}
+                className="h-9 text-xs font-black bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-md shadow-blue-100"
+              >
+                {createBookingMutation.isPending ? "Confirming..." : "Confirm & Book"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }
