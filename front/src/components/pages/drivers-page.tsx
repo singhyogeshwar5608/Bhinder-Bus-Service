@@ -1374,6 +1374,34 @@ export function DriversPage() {
     }
   };
 
+  const handleExport = async () => {
+    if (!drivers.length) return;
+    try {
+      const jsPDF = (await import("jspdf")).default;
+      const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+      const pageW = pdf.internal.pageSize.getWidth(), pageH = pdf.internal.pageSize.getHeight();
+      const cols = ["Driver Name", "License No.", "Location", "Experience", "Joining Date", "Status"];
+      const colW = [36, 36, 36, 28, 36, 28];
+      let y = 10, rowH = 6;
+      const drawH = () => { pdf.setFillColor(37, 99, 235); pdf.rect(0, y, pageW, rowH + 2, "F"); pdf.setTextColor(255, 255, 255); pdf.setFont("helvetica", "bold"); pdf.setFontSize(7); let hx = 4; cols.forEach((c, i) => { pdf.text(c, hx + 1, y + 5); hx += colW[i]; }); y += rowH + 3; };
+      drawH(); pdf.setFont("helvetica", "normal"); pdf.setFontSize(6); pdf.setTextColor(30, 41, 59);
+      drivers.forEach((d: any, idx: number) => {
+        if (y > pageH - 15) { pdf.addPage(); y = 10; drawH(); }
+        if (idx % 2 === 0) { pdf.setFillColor(248, 250, 252); pdf.rect(0, y - 1, pageW, rowH + 1, "F"); }
+        const name = d.name || d.driver_name || "";
+        const lic = d.license_number || d.driving_license || "N/A";
+        const loc = d.location || d.city || "N/A";
+        const exp = d.experience_years ? d.experience_years + " yrs" : (d.experience || "N/A");
+        const join = d.joining_date || d.created_at ? new Date(d.joining_date || d.created_at).toLocaleDateString("en-IN") : "N/A";
+        const status = d.status || "";
+        const vals = [name, lic, loc, exp, join, status];
+        let vx = 4; vals.forEach((v, i) => { const s = typeof v === "string" ? v : String(v ?? ""); pdf.text(s.length > 20 ? s.slice(0, 18) + ".." : s, vx + 1, y + 4); vx += colW[i]; });
+        y += rowH + 1;
+      });
+      pdf.save(`drivers-export-${new Date().toISOString().slice(0, 10)}.pdf`);
+    } catch { /* ignore */ }
+  };
+
   if (isAdding || editingDriver) {
     return (
       <AddDriverForm 
@@ -1437,6 +1465,7 @@ export function DriversPage() {
             <Button
               variant="outline"
               className="h-10 border-gray-200 text-gray-600"
+              onClick={handleExport}
             >
               <Download className="w-4 h-4 mr-2" />
               Export

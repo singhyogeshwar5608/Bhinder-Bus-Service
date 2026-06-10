@@ -14,19 +14,128 @@ class SearchController extends Controller
         $request->validate([
             'from_city' => 'required|string',
             'to_city' => 'required|string',
-            'journey_date' => 'required|date',
+            'journey_date' => 'nullable|date',
         ]);
 
-        $schedules = Schedule::with(['bus.driver', 'route'])
-            ->whereHas('route', function ($query) use ($request) {
-                $query->where('from_city', $request->from_city)
-                      ->where('to_city', $request->to_city);
-            })
-            ->where('journey_date', $request->journey_date)
-            ->where('status', 'scheduled')
-            ->get();
+        $from = $request->from_city;
+        $to = $request->to_city;
+        $date = $request->journey_date;
 
-        return response()->json($schedules);
+        $query = Schedule::with(['bus.driver', 'route.stops', 'driver'])
+            ->where('status', 'scheduled')
+            ->whereHas('route', function ($query) use ($from, $to) {
+                $query->where(function($q) use ($from) {
+                    $q->where('from_city', 'LIKE', "%$from%")
+                      ->orWhereHas('stops', function($sq) use ($from) {
+                          $sq->where('stop_name', 'LIKE', "%$from%");
+                      });
+                })->where(function($q) use ($to) {
+                    $q->where('to_city', 'LIKE', "%$to%")
+                      ->orWhereHas('stops', function($sq) use ($to) {
+                          $sq->where('stop_name', 'LIKE', "%$to%");
+                      });
+                });
+            });
+
+        if ($date) {
+            $query->where('journey_date', $date);
+        } else {
+            $query->where('journey_date', '>=', now()->toDateString());
+        }
+
+        $schedules = $query->orderBy('journey_date')->get();
+
+        $results = $schedules->map(function ($schedule) use ($from, $to) {
+            $route = $schedule->route;
+            $fromOrder = -1;
+            $fromFare = 0;
+            $fromTime = $schedule->departure_time;
+            $matchedFromCity = "";
+            
+            $toOrder = -1;
+            $toFare = $schedule->fare;
+            $toTime = $schedule->arrival_time;
+            $matchedToCity = "";
+
+            // Match From City/Stop
+            if (stripos($route->from_city, $from) !== false) {
+                $fromOrder = 0;
+                $fromFare = 0;
+                $fromTime = $schedule->departure_time;
+                $matchedFromCity = $route->from_city;
+            } else {
+                $stop = $route->stops->filter(function($s) use ($from) {
+                    return stripos($s->stop_name, $from) !== false;
+                })->first();
+                
+                if ($stop) {
+                    $fromOrder = $stop->order;
+                    $fromFare = $stop->fare;
+                    $fromTime = $stop->departure_time ?? $stop->arrival_time;
+                    $matchedFromCity = $stop->stop_name;
+                }
+            }
+
+            // Match To City/Stop
+            if (stripos($route->to_city, $to) !== false) {
+                $toOrder = 99999;
+                $toFare = $schedule->fare;
+                $toTime = $schedule->arrival_time;
+                $matchedToCity = $route->to_city;
+            } else {
+                $stop = $route->stops->filter(function($s) use ($to) {
+                    return stripos($s->stop_name, $to) !== false;
+                })->first();
+                
+                if ($stop) {
+                    $toOrder = $stop->order;
+                    $toFare = $stop->fare;
+                    $toTime = $stop->arrival_time;
+                    $matchedToCity = $stop->stop_name;
+                }
+            }
+
+            if ($fromOrder !== -1 && $toOrder !== -1 && $fromOrder < $toOrder) {
+                $amenities = $schedule->bus->amenities ?? ['A/C', 'Charging Point', 'Water Bottle'];
+                if (is_string($amenities)) {
+                    $amenities = json_decode($amenities, true);
+                }
+
+                $images = $schedule->bus->images ?? [];
+                if (is_string($images)) {
+                    $images = json_decode($images, true);
+                }
+
+                $depTime = \Carbon\Carbon::parse($fromTime)->format('h:i A');
+                $arrTime = \Carbon\Carbon::parse($toTime)->format('h:i A');
+                
+                // Calculate duration
+                $start = \Carbon\Carbon::parse($fromTime);
+                $end = \Carbon\Carbon::parse($toTime);
+                $diff = $start->diff($end);
+                $duration = $diff->h . 'h ' . $diff->i . 'm';
+
+                return [
+                    'id' => $schedule->id,
+                    'name' => $schedule->bus->bus_name,
+                    'type' => $schedule->bus->bus_type,
+                    'dep' => $depTime,
+                    'arr' => $arrTime,
+                    'from' => $matchedFromCity,
+                    'to' => $matchedToCity,
+                    'date' => $schedule->journey_date,
+                    'duration' => $duration,
+                    'fare' => max(0, $toFare - $fromFare),
+                    'available_seats' => $schedule->available_seats,
+                    'amenities' => $amenities,
+                    'images' => $images,
+                    'stops' => $route->stops,
+                ];
+            }
+            return null;
+        })->filter()->values();
+
+        return response()->json($results);
     }
 
     public function getSeats($schedule_id)

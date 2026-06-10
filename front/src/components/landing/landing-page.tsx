@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Bus,
   MapPin,
@@ -48,11 +48,12 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
 import { useNavStore } from "@/lib/nav-store";
-import { cn } from "@/lib/utils";
+import { cn, getImageUrl } from "@/lib/utils";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { useSearchCities, useTopBuses } from "@/hooks/use-search";
+import { useSearchCities, useTopBuses, useSearchBuses } from "@/hooks/use-search";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
@@ -67,11 +68,54 @@ export function LandingPage() {
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { setShowLoginModal } = useNavStore();
+
+  // Hero section sliding images
+  const heroImages = [
+    "/slide/bus-hero.png",
+    "/slide/bus interior.png",
+    "/slide/bus interior back.png",
+    "/slide/bus driver seat.png"
+  ];
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [imagesLoaded, setImagesLoaded] = useState(false);
+
+  useEffect(() => {
+    const preloadImages = async () => {
+      const promises = heroImages.map(
+        (src) =>
+          new Promise<void>((resolve) => {
+            const img = new Image();
+            img.src = src;
+            img.onload = () => resolve();
+            img.onerror = () => resolve();
+          })
+      );
+      await Promise.all(promises);
+      setImagesLoaded(true);
+    };
+    preloadImages();
+  }, []);
+
+  useEffect(() => {
+    if (!imagesLoaded) return;
+    const timer = setInterval(() => {
+      setCurrentImageIndex((prev) => (prev + 1) % heroImages.length);
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [imagesLoaded]);
+
+  useEffect(() => {
+    if (localStorage.getItem("scroll_to_schedules") === "true") {
+      localStorage.removeItem("scroll_to_schedules");
+      setTimeout(() => {
+        document.getElementById("schedules-section")?.scrollIntoView({ behavior: "smooth" });
+      }, 300);
+    }
+  }, []);
   
   const [searchParams, setSearchParams] = useState({
     from: "Delhi",
     to: "Jaipur",
-    date: new Date().toISOString().split("T")[0],
     passengers: 1,
   });
 
@@ -82,6 +126,12 @@ export function LandingPage() {
 
   const { data: citiesData, isLoading: loadingCities } = useSearchCities();
   const { data: topBuses, isLoading: loadingTopBuses } = useTopBuses();
+  const { data: searchedBuses, isLoading: searchingBuses, refetch: refetchSearch } = useSearchBuses({
+    from_city: searchParams.from,
+    to_city: searchParams.to,
+    journey_date: searchParams.date,
+  });
+  const [hasSearched, setHasSearched] = useState(false);
   const [viewingBusDetails, setViewingBusDetails] = useState<any>(null);
   const [viewingStoppages, setViewingStoppages] = useState<any>(null);
   const [visibleSchedulesCount, setVisibleSchedulesCount] = useState(5);
@@ -199,32 +249,30 @@ export function LandingPage() {
   const getDayOfWeek = (dateStr: string) => {
     if (!dateStr) return "";
     const date = new Date(dateStr);
-    return date.toLocaleDateString("en-IN", { weekday: "long" });
+    return date.toLocaleDateString("en-IN", { weekday: "short" });
   };
 
   const handleSearch = () => {
-    localStorage.setItem("search_params", JSON.stringify(searchParams));
-    navigate("/booking");
+    setHasSearched(true);
+    refetchSearch();
+    setTimeout(() => {
+      document.getElementById("schedules-section")?.scrollIntoView({ behavior: "smooth" });
+    }, 100);
   };
-
 
   return (
     <div className="min-h-screen flex flex-col bg-white">
       {/* ═══ NAVBAR ═══ */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-100 shadow-sm">
+      <header className="fixed top-0 left-0 right-0 z-50 bg-white/20 backdrop-blur-lg border-b border-white/30 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 bg-blue-600 rounded-lg flex items-center justify-center">
-                <Bus className="w-5 h-5 text-white" />
-              </div>
-              <span className="text-xl font-bold text-blue-600">BusBook</span>
+            <div className="flex items-center gap-2.5 cursor-pointer" onClick={() => navigate("/")}>
+              <img src="/logo.png" alt="Logo" className="h-18 object-contain" />
             </div>
 
-            {/* Desktop Nav Links */}
             <nav className="hidden lg:flex items-center gap-1">
-              {["Home", "Buses", "Routes", "Offers", "Track Booking", "Help"].map(
+              {["Home", "Buses", "Routes", "Track Booking"].map(
                 (link, i) => {
                   const isActive = (i === 0 && window.location.pathname === "/") || 
                                    (i === 1 && window.location.pathname === "/buses") || 
@@ -236,6 +284,7 @@ export function LandingPage() {
                         if (i === 0) navigate("/");
                         if (i === 1) navigate("/buses");
                         if (i === 2) navigate("/routes");
+                        if (i === 3) navigate("/track");
                       }}
                       className={cn(
                         "px-4 py-2 text-sm font-semibold transition-colors relative pb-3.5",
@@ -256,7 +305,7 @@ export function LandingPage() {
             <div className="hidden lg:flex items-center gap-3">
               <Button
                 className="relative h-10 px-6 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold rounded-full shadow-lg shadow-blue-200 transition-all duration-300 hover:scale-105 active:scale-95 group overflow-hidden"
-                onClick={() => navigate("/booking")}
+                onClick={() => document.getElementById("schedules-section")?.scrollIntoView({ behavior: "smooth" })}
               >
                 <span className="relative z-10 flex items-center gap-2">
                   <Sparkles className="w-4 h-4 animate-pulse" />
@@ -270,7 +319,7 @@ export function LandingPage() {
             <div className="flex lg:hidden items-center gap-2.5">
               <Button
                 className="relative h-9 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold rounded-full shadow-lg shadow-blue-200 transition-all duration-300 hover:scale-105 active:scale-95 flex items-center gap-1.5 text-xs group overflow-hidden"
-                onClick={() => navigate("/booking")}
+                onClick={() => document.getElementById("schedules-section")?.scrollIntoView({ behavior: "smooth" })}
               >
                 <Sparkles className="w-3.5 h-3.5 animate-pulse" />
                 Book Now
@@ -289,18 +338,19 @@ export function LandingPage() {
         {mobileMenuOpen && (
           <div className="lg:hidden bg-white border-t border-gray-100 shadow-lg">
             <div className="px-4 py-3 space-y-1">
-              {["Home", "Buses", "Routes", "Offers", "Track Booking", "Help"].map(
+              {["Home", "Buses", "Routes", "Track Booking"].map(
                 (link, i) => (
                   <a
                     key={link}
                     href="#"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      if (i === 0) navigate("/");
-                      if (i === 1) navigate("/buses");
-                      if (i === 2) navigate("/routes");
-                      setMobileMenuOpen(false);
-                    }}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        if (i === 0) navigate("/");
+                        if (i === 1) navigate("/buses");
+                        if (i === 2) navigate("/routes");
+                        if (i === 3) navigate("/track");
+                        setMobileMenuOpen(false);
+                      }}
                     className={cn(
                       "block px-3 py-2.5 text-sm font-medium rounded-lg",
                       (i === 0 && window.location.pathname === "/") || (i === 1 && window.location.pathname === "/buses") || (i === 2 && window.location.pathname === "/routes")
@@ -315,7 +365,7 @@ export function LandingPage() {
               <div className="pt-3">
                 <Button
                   className="relative h-11 w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center gap-2"
-                  onClick={() => { navigate("/booking"); setMobileMenuOpen(false); }}
+                  onClick={() => { document.getElementById("schedules-section")?.scrollIntoView({ behavior: "smooth" }); setMobileMenuOpen(false); }}
                 >
                   <Sparkles className="w-4 h-4 animate-pulse" />
                   Book Now
@@ -327,46 +377,26 @@ export function LandingPage() {
       </header>
 
       {/* ═══ HERO SECTION ═══ */}
-      <section className="relative pt-24 pb-36 lg:pt-40 lg:pb-36 min-h-[500px] lg:min-h-[680px] flex flex-col justify-center items-start lg:items-center select-none text-left lg:text-center">
-        {/* Background Image */}
-        <div className="absolute inset-0 z-0">
-          <img
-            src="/landing/bus-hero.png"
-            alt="Bus travel background"
-            className="w-full h-full object-cover object-center"
-          />
+      <section className="relative pb-36 lg:pb-36 min-h-[500px] lg:min-h-[680px] flex flex-col justify-center items-start lg:items-center select-none text-left lg:text-center">
+        {/* Background Image Carousel (Crossfade) */}
+        <div className="absolute inset-x-0 top-16 bottom-0 z-0 overflow-hidden">
+          {heroImages.map((src, index) => (
+            <img
+              key={src}
+              src={src}
+              alt={`Slide ${index + 1}`}
+              className={cn(
+                "absolute inset-0 w-full h-full transition-all duration-1000 ease-in-out",
+                index === currentImageIndex ? "opacity-100" : "opacity-0"
+              )}
+              style={{ objectFit: "fill" }}
+            />
+          ))}
         </div>
         {/* Responsive Background Overlay: Dark on mobile, white overlay on desktop */}
-        <div className="absolute inset-0 bg-black/40 lg:bg-white/10 lg:backdrop-blur-[0.5px] z-0"></div>
+        <div className="absolute inset-x-0 top-16 bottom-0 bg-black/40 lg:bg-white/10 lg:backdrop-blur-[0.5px] z-0"></div>
 
-        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full flex flex-col items-start lg:items-center justify-center gap-4">
-          {/* Capsule Tag */}
-          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-slate-900/60 backdrop-blur-xs text-white border border-slate-700/50 lg:bg-blue-50 lg:text-blue-600 lg:border-blue-100 select-none shadow-xs">
-            <Sparkles className="w-3.5 h-3.5 text-blue-400 lg:text-blue-500" />
-            Your Journey, Our Priority
-          </div>
-
-          {/* Heading (Wrapped on mobile, single line on desktop) */}
-          <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-tight flex flex-col lg:flex-row gap-0.5 lg:gap-3 text-left lg:text-center">
-            <span className="text-white lg:text-blue-600">Travel Easy,</span>
-            <span className="text-blue-600 ">Travel Better</span>
-          </h1>
-
-          {/* Description Paragraph */}
-          <p className="text-sm sm:text-base text-blue-900 lg:text-slate-650 font-semibold max-w-2xl leading-relaxed text-left lg:text-center mt-1">
-            Book comfortable bus journeys across India with ease.
-          </p>
-
-          {/* Mobile Search Button (visible only on mobile) */}
-          <Button
-            className="lg:hidden h-10 px-6 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-full shadow-lg shadow-blue-500/20 flex items-center gap-2 mt-2 text-xs"
-            onClick={() => {
-              document.getElementById("search-section")?.scrollIntoView({ behavior: "smooth" });
-            }}
-          >
-            <Search className="w-3.5 h-3.5 text-white" />
-            Search Buses
-          </Button>
+        <div className="absolute inset-x-0 top-16 bottom-0 z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
         </div>
       </section>
 
@@ -395,8 +425,8 @@ export function LandingPage() {
             </div>
 
             {/* Dotted Line Path Decoration with Sliding Bus (Desktop) */}
-            <div className="absolute top-[38px] left-[15%] right-[15%] h-[1px] border-t-2 border-dashed border-slate-100 pointer-events-none select-none hidden lg:block" />
-            <div className="absolute top-9 left-1/2 -translate-x-1/2 w-[70%] hidden lg:flex items-center justify-between pointer-events-none select-none z-10">
+            <div className="absolute top-[38px] left-[25%] right-[25%] h-[1px] border-t-2 border-dashed border-slate-100 pointer-events-none select-none hidden lg:block" />
+            <div className="absolute top-9 left-1/2 -translate-x-1/2 w-[50%] hidden lg:flex items-center justify-between pointer-events-none select-none z-10">
               <MapPin className="w-4 h-4 text-blue-400 opacity-60" />
               <div className="flex-1 border-t-2 border-dashed border-blue-200 mx-2 relative">
                 <div className="absolute -top-3.5 left-1/3 w-8 h-8 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center shadow-xs">
@@ -407,7 +437,7 @@ export function LandingPage() {
             </div>
 
             {/* Responsive Input Fields Container */}
-            <div className="flex flex-col lg:grid lg:grid-cols-4 gap-2.5 lg:gap-4 relative pt-1 lg:pt-3">
+            <div className="flex flex-col lg:grid lg:grid-cols-2 gap-2.5 lg:gap-4 relative pt-1 lg:pt-3">
               {/* Wrapper for From, To and Swap button to ensure robust vertical centering on mobile */}
               <div className="relative flex flex-col gap-2.5 lg:contents">
                 {/* From Popover */}
@@ -431,16 +461,40 @@ export function LandingPage() {
                     <div className="space-y-2">
                       <input
                         type="text"
-                        placeholder="Search departure city..."
+                        placeholder="Type or search departure city..."
                         value={fromSearchQuery}
-                        onChange={(e) => setFromSearchQuery(e.target.value)}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setFromSearchQuery(val);
+                          // We don't update searchParams immediately to allow selection from list
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            if (fromSearchQuery) {
+                              setSearchParams(prev => ({ ...prev, from: fromSearchQuery }));
+                            }
+                            setFromOpen(false);
+                          }
+                        }}
                         className="w-full h-9 px-3 rounded-lg border border-slate-200 text-xs focus:outline-none focus:border-blue-500"
                         autoFocus
                       />
                       <div className="max-h-48 overflow-y-auto space-y-1">
+                        {fromSearchQuery && !fromCities.some(c => c.toLowerCase() === fromSearchQuery.toLowerCase()) && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSearchParams(prev => ({ ...prev, from: fromSearchQuery }));
+                              setFromOpen(false);
+                            }}
+                            className="w-full text-left px-3 py-2 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors border border-blue-100 mb-1"
+                          >
+                            Use "{fromSearchQuery}"
+                          </button>
+                        )}
                         {loadingCities ? (
                           <p className="text-xs text-gray-400 p-2">Loading cities...</p>
-                        ) : filteredFromCities.length === 0 ? (
+                        ) : filteredFromCities.length === 0 && !fromSearchQuery ? (
                           <p className="text-xs text-gray-400 p-2">No cities found</p>
                         ) : (
                           filteredFromCities.map((city: string) => (
@@ -494,16 +548,39 @@ export function LandingPage() {
                     <div className="space-y-2">
                       <input
                         type="text"
-                        placeholder="Search destination city..."
+                        placeholder="Type or search destination city..."
                         value={toSearchQuery}
-                        onChange={(e) => setToSearchQuery(e.target.value)}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setToSearchQuery(val);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            if (toSearchQuery) {
+                              setSearchParams(prev => ({ ...prev, to: toSearchQuery }));
+                            }
+                            setToOpen(false);
+                          }
+                        }}
                         className="w-full h-9 px-3 rounded-lg border border-slate-200 text-xs focus:outline-none focus:border-blue-500"
                         autoFocus
                       />
                       <div className="max-h-48 overflow-y-auto space-y-1">
+                        {toSearchQuery && !toCities.some(c => c.toLowerCase() === toSearchQuery.toLowerCase()) && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSearchParams(prev => ({ ...prev, to: toSearchQuery }));
+                              setToOpen(false);
+                            }}
+                            className="w-full text-left px-3 py-2 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors border border-blue-100 mb-1"
+                          >
+                            Use "{toSearchQuery}"
+                          </button>
+                        )}
                         {loadingCities ? (
                           <p className="text-xs text-gray-400 p-2">Loading cities...</p>
-                        ) : filteredToCities.length === 0 ? (
+                        ) : filteredToCities.length === 0 && !toSearchQuery ? (
                           <p className="text-xs text-gray-400 p-2">No cities found</p>
                         ) : (
                           filteredToCities.map((city: string) => (
@@ -526,78 +603,6 @@ export function LandingPage() {
                   </PopoverContent>
                 </Popover>
               </div>
-
-              {/* Date Input */}
-              <div className="relative flex items-center justify-between p-2.5 lg:p-3.5 rounded-2xl border border-slate-200 bg-white hover:border-blue-400 hover:shadow-md transition-all cursor-pointer select-none gap-3">
-                <input
-                  type="date"
-                  value={searchParams.date}
-                  onChange={(e) => setSearchParams(prev => ({ ...prev, date: e.target.value }))}
-                  className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10"
-                  min={new Date().toISOString().split("T")[0]}
-                />
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-8 h-8 lg:w-10 lg:h-10 rounded-lg lg:rounded-xl bg-blue-50 flex items-center justify-center shrink-0 border border-blue-100">
-                    <Calendar className="w-4 h-4 lg:w-5 lg:h-5 text-blue-600" />
-                  </div>
-                  <div className="min-w-0 text-left">
-                    <p className="text-[9px] lg:text-[10px] text-slate-400 font-bold uppercase tracking-wider">JOURNEY DATE</p>
-                    <p className="text-sm lg:text-base font-extrabold text-slate-900 truncate leading-tight mt-0.5">
-                      {formatDisplayDate(searchParams.date)}, {getDayOfWeek(searchParams.date)}
-                    </p>
-                  </div>
-                </div>
-                <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
-              </div>
-
-              {/* Passengers Popover */}
-              <Popover>
-                <PopoverTrigger asChild>
-                  <div className="flex items-center justify-between p-2.5 lg:p-3.5 rounded-2xl border border-slate-200 bg-white hover:border-blue-400 hover:shadow-md transition-all cursor-pointer w-full select-none gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-8 h-8 lg:w-10 lg:h-10 rounded-lg lg:rounded-xl bg-blue-50 flex items-center justify-center shrink-0 border border-blue-100">
-                        <Users className="w-4 h-4 lg:w-5 lg:h-5 text-blue-600" />
-                      </div>
-                      <div className="min-w-0 text-left">
-                        <p className="text-[9px] lg:text-[10px] text-slate-400 font-bold uppercase tracking-wider">PASSENGERS</p>
-                        <p className="text-sm lg:text-base font-extrabold text-slate-900 truncate leading-tight mt-0.5">
-                          {searchParams.passengers} Passenger{searchParams.passengers > 1 ? "s" : ""}
-                        </p>
-                      </div>
-                    </div>
-                    <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
-                  </div>
-                </PopoverTrigger>
-                <PopoverContent className="w-56 p-4 bg-white border border-slate-150 shadow-xl rounded-xl z-50">
-                  <div className="space-y-3">
-                    <p className="text-xs font-bold text-gray-700 uppercase tracking-wider">Number of Passengers</p>
-                    <div className="flex items-center justify-between">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSearchParams(prev => ({ ...prev, passengers: Math.max(1, prev.passengers - 1) }));
-                        }}
-                        className="w-8 h-8 rounded-full border border-gray-250 flex items-center justify-center text-gray-600 hover:bg-gray-50 active:scale-95 transition-all text-sm font-bold"
-                        type="button"
-                      >
-                        -
-                      </button>
-                      <span className="text-sm font-bold text-gray-900">{searchParams.passengers}</span>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSearchParams(prev => ({ ...prev, passengers: Math.min(6, prev.passengers + 1) }));
-                        }}
-                        className="w-8 h-8 rounded-full border border-gray-250 flex items-center justify-center text-gray-600 hover:bg-gray-50 active:scale-95 transition-all text-sm font-bold"
-                        type="button"
-                      >
-                        +
-                      </button>
-                    </div>
-                    <p className="text-[10px] text-gray-400">Max 6 passengers per booking.</p>
-                  </div>
-                </PopoverContent>
-              </Popover>
             </div>
 
             {/* Search Button and Filter slider row */}
@@ -974,7 +979,7 @@ export function LandingPage() {
       
 
       {/* ═══ AVAILABLE SCHEDULES ═══ */}
-      <section className="bg-[#f8fafc] pt-[35px] pb-14 sm:pb-20">
+      <section id="schedules-section" className="bg-[#f8fafc] pt-[35px] pb-14 sm:pb-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Section Header */}
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6 sm:mb-8">
@@ -1117,7 +1122,7 @@ export function LandingPage() {
 
           {/* Bus Listings */}
           <div className="space-y-4">
-            {loadingTopBuses ? (
+            {loadingTopBuses || (hasSearched && searchingBuses) ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <div
                   key={i}
@@ -1131,35 +1136,39 @@ export function LandingPage() {
                   <div className="w-28 h-8 bg-gray-150 rounded-lg shrink-0 hidden md:block" />
                 </div>
               ))
-            ) : !topBuses || topBuses.length === 0 ? (
-              <div className="bg-white p-8 text-center rounded-xl border border-gray-200 text-gray-500">
-                No active schedules found.
-              </div>
-            ) : (
-              (() => {
-                const filteredTopBuses = topBuses?.filter((bus: any) => {
-                  const matchesFrom = topBusFromFilter ? bus.from === topBusFromFilter : true;
-                  const matchesTo = topBusToFilter ? bus.to === topBusToFilter : true;
-                  const matchesType = topBusTypeFilter ? bus.type === topBusTypeFilter : true;
-                  return matchesFrom && matchesTo && matchesType;
-                });
+            ) : (() => {
+              const currentBuses = hasSearched ? searchedBuses : topBuses;
+              if (!currentBuses || currentBuses.length === 0) {
+                return (
+                  <div className="bg-white p-8 text-center rounded-xl border border-gray-200 text-gray-500">
+                    {hasSearched ? `No buses found for ${searchParams.from} to ${searchParams.to}` : "No active schedules found."}
+                  </div>
+                );
+              }
 
-                if (filteredTopBuses.length === 0) {
-                  return (
-                    <div className="bg-white p-8 text-center rounded-xl border border-gray-200 text-gray-500">
-                      No matching schedules found for the selected filters.
-                    </div>
-                  );
-                }
+              const filteredTopBuses = currentBuses?.filter((bus: any) => {
+                const matchesFrom = topBusFromFilter ? bus.from === topBusFromFilter : true;
+                const matchesTo = topBusToFilter ? bus.to === topBusToFilter : true;
+                const matchesType = topBusTypeFilter ? bus.type === topBusTypeFilter : true;
+                return matchesFrom && matchesTo && matchesType;
+              });
 
-                const visibleBuses = filteredTopBuses.slice(0, visibleSchedulesCount);
-                
-                const getTerminal = (cityName: string) => {
-                  if (!cityName) return "Bus Stand";
-                  return cityTerminals[cityName] || cityTerminals[cityName.trim()] || "Bus Stand";
-                };
+              if (filteredTopBuses.length === 0) {
+                return (
+                  <div className="bg-white p-8 text-center rounded-xl border border-gray-200 text-gray-500">
+                    No matching schedules found for the selected filters.
+                  </div>
+                );
+              }
 
-                return visibleBuses.map((bus: any) => {
+              const visibleBuses = filteredTopBuses.slice(0, visibleSchedulesCount);
+              
+              const getTerminal = (cityName: string) => {
+                if (!cityName) return "Bus Stand";
+                return cityTerminals[cityName] || cityTerminals[cityName.trim()] || "Bus Stand";
+              };
+
+              return visibleBuses.map((bus: any) => {
                   const badgeInfo = getBusBadge(bus.type, bus.bus_details?.bus_category || "");
                   
                   return (
@@ -1172,26 +1181,34 @@ export function LandingPage() {
                         {/* Operator Info, Image, Amenities */}
                         <div className="flex gap-4 items-start w-[380px] shrink-0 text-left">
                           {/* Image with Badge overlay */}
-                          <div className="w-32 h-[80px] rounded-lg overflow-hidden relative shrink-0 border border-gray-100 bg-gray-50 shadow-xs">
-                            <span className={cn("absolute top-1.5 left-1.5 px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider select-none", badgeInfo.bg, badgeInfo.textCol)}>
-                              {badgeInfo.text}
-                            </span>
-                            {bus.images && bus.images.length > 0 ? (
-                              <img
-                                src={`${import.meta.env.VITE_STORAGE_URL || 'http://localhost:8000/storage'}/${bus.images[0]}`}
-                                alt={bus.name}
-                                className="w-full h-full object-cover hover:scale-110 transition-transform duration-300"
-                              />
-                            ) : (
-                              <div className="w-full h-full bg-blue-50 flex items-center justify-center">
-                                <Bus className="w-7 h-7 text-blue-500" />
-                              </div>
-                            )}
-                          </div>
+                        <div className="w-32 h-[80px] rounded-lg overflow-hidden relative shrink-0 border border-gray-100 bg-gray-50 shadow-xs">
+                          <span className={cn("absolute top-1.5 left-1.5 px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider select-none", badgeInfo.bg, badgeInfo.textCol)}>
+                            {badgeInfo.text}
+                          </span>
+                          <img
+                            src={getImageUrl(bus.images, bus.id)}
+                            alt={bus.name}
+                            className="w-full h-full object-cover hover:scale-110 transition-transform duration-300"
+                            onError={(e) => { e.currentTarget.src = "/bus-1.png"; }}
+                          />
+                        </div>
 
                           {/* Operator details & amenities wrap row */}
                           <div className="flex-1 min-w-0">
-                            <h4 className="text-base font-extrabold text-gray-900 leading-tight truncate">{bus.name}</h4>
+                            <div className="flex items-center gap-2 mb-0.5">
+                              <h4 className="text-base font-extrabold text-gray-900 leading-tight truncate">{bus.name}</h4>
+                              <motion.div 
+                                animate={{ 
+                                  scale: [1, 1.05, 1],
+                                  boxShadow: ["0px 0px 0px rgba(59, 130, 246, 0)", "0px 0px 10px rgba(59, 130, 246, 0.3)", "0px 0px 0px rgba(59, 130, 246, 0)"]
+                                }}
+                                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-100 shrink-0"
+                              >
+                                <Calendar className="w-3.5 h-3.5 text-blue-100" />
+                                <span className="text-[11px] font-black uppercase tracking-tight">{formatDisplayDate(bus.date)}</span>
+                              </motion.div>
+                            </div>
                             <span className="text-xs text-gray-400 font-semibold mb-1.5 block">{bus.type}</span>
                             
                             {/* Amenities flex wrap */}
@@ -1210,15 +1227,15 @@ export function LandingPage() {
                         </div>
 
                         {/* Departure Info */}
-                        <div className="w-[110px] shrink-0 text-left">
-                          <p className="text-lg font-black text-gray-900 leading-tight">{bus.dep}</p>
-                          <p className="text-xs font-bold text-gray-800 mt-1 truncate">{bus.depLoc}</p>
-                          <p className="text-[10px] text-gray-400 font-semibold truncate mt-0.5">{getTerminal(bus.depLoc)}</p>
+                        <div className="w-[140px] shrink-0 text-left">
+                          <p className="text-[12px] font-black text-gray-900 leading-tight">{bus.dep}</p>
+                          <p className="text-base font-extrabold text-gray-800 mt-1 truncate">{bus.depLoc}</p>
+                          <p className="text-[11px] text-gray-400 font-semibold truncate mt-0.5">{getTerminal(bus.depLoc)}</p>
                         </div>
 
                         {/* Dotted Timeline connector */}
                         <div className="flex-1 flex flex-col items-center justify-center px-2 min-w-[120px]">
-                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">
+                          <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">
                             {formatDuration(bus.duration)} {bus.bus_details?.route?.distance ? `• ${bus.bus_details.route.distance} KM` : ''}
                           </span>
                           <div className="w-full flex items-center gap-1 relative my-0.5">
@@ -1253,10 +1270,10 @@ export function LandingPage() {
                         </div>
 
                         {/* Arrival Info */}
-                        <div className="w-[110px] shrink-0 text-left">
-                          <p className="text-lg font-black text-gray-900 leading-tight">{bus.arr}</p>
-                          <p className="text-xs font-bold text-gray-800 mt-1 truncate">{bus.arrLoc}</p>
-                          <p className="text-[10px] text-gray-400 font-semibold truncate mt-0.5">{getTerminal(bus.arrLoc)}</p>
+                        <div className="w-[140px] shrink-0 text-left">
+                          <p className="text-[12px] font-black text-gray-900 leading-tight">{bus.arr}</p>
+                          <p className="text-base font-extrabold text-gray-800 mt-1 truncate">{bus.arrLoc}</p>
+                          <p className="text-[11px] text-gray-400 font-semibold truncate mt-0.5">{getTerminal(bus.arrLoc)}</p>
                         </div>
 
                         {/* Seats Left & Driver Details */}
@@ -1320,14 +1337,28 @@ export function LandingPage() {
                       {/* MOBILE CARD LAYOUT (Pixel Perfect to Mobile Mockup) */}
                       <div className="lg:hidden flex flex-col p-3 gap-[3px]">
                         {/* Top row: Badge + Operator Name + Type */}
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className={cn("px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider select-none shrink-0", badgeInfo.bg, badgeInfo.textCol)}>
-                            {badgeInfo.text}
-                          </span>
-                          <div className="min-w-0 text-left">
-                            <h4 className="text-sm font-extrabold text-gray-955 leading-tight">{bus.name}</h4>
-                            <p className="text-[10px] text-gray-400 font-semibold mt-0.5 select-none">{bus.type}</p>
+                        <div className="flex items-center justify-between gap-2 min-w-0">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className={cn("px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider select-none shrink-0", badgeInfo.bg, badgeInfo.textCol)}>
+                              {badgeInfo.text}
+                            </span>
+                            <div className="min-w-0 text-left">
+                              <h4 className="text-sm font-extrabold text-gray-955 leading-tight">{bus.name}</h4>
+                              <p className="text-[10px] text-gray-400 font-semibold mt-0.5 select-none">{bus.type}</p>
+                            </div>
                           </div>
+                          {/* Journey Date Badge - Mobile */}
+                           <motion.div 
+                             animate={{ 
+                               backgroundColor: ["#eff6ff", "#dbeafe", "#eff6ff"],
+                               scale: [1, 1.02, 1]
+                             }}
+                             transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                             className="flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-50 text-blue-600 border border-blue-200 shadow-sm shrink-0"
+                           >
+                             <Calendar className="w-3 h-3 text-blue-500" />
+                             <span className="text-[10px] font-black uppercase tracking-tight">{formatDisplayDate(bus.date)}</span>
+                           </motion.div>
                         </div>
 
                         {/* Mobile Amenities/Facilities Row */}
@@ -1347,8 +1378,8 @@ export function LandingPage() {
                         <div className="grid grid-cols-3 gap-1.5 items-center py-1 border-t border-gray-50">
                           {/* Departure */}
                           <div className="flex flex-col text-left min-w-0">
-                            <p className="text-sm font-black text-gray-900 leading-none">{bus.dep}</p>
-                            <p className="text-[10px] text-gray-500 font-bold mt-1 truncate">{bus.depLoc}</p>
+                            <p className="text-[11px] font-bold text-gray-700 leading-none">{bus.dep}</p>
+                            <p className="text-[15px] text-gray-900 font-extrabold mt-0.5 truncate">{bus.depLoc}</p>
                             <p className="text-[8px] text-gray-400 mt-0.5 truncate">{getTerminal(bus.depLoc)}</p>
                           </div>
 
@@ -1366,8 +1397,8 @@ export function LandingPage() {
 
                           {/* Arrival */}
                           <div className="flex flex-col text-right min-w-0">
-                            <p className="text-sm font-black text-gray-900 leading-none">{bus.arr}</p>
-                            <p className="text-[10px] text-gray-500 font-bold mt-1 truncate">{bus.arrLoc}</p>
+                            <p className="text-[11px] font-bold text-gray-700 leading-none">{bus.arr}</p>
+                            <p className="text-[15px] text-gray-900 font-extrabold mt-0.5 truncate">{bus.arrLoc}</p>
                             <p className="text-[8px] text-gray-400 mt-0.5 truncate">{getTerminal(bus.arrLoc)}</p>
                           </div>
                         </div>
@@ -1458,13 +1489,13 @@ export function LandingPage() {
                     </div>
                   );
                 });
-              })()
-            )}
+              })()}
           </div>
 
           {/* Show More Schedules CTA Button */}
           {(() => {
-            const filteredTopBuses = topBuses?.filter((bus: any) => {
+            const currentBuses = hasSearched ? searchedBuses : topBuses;
+            const filteredTopBuses = currentBuses?.filter((bus: any) => {
               const matchesFrom = topBusFromFilter ? bus.from === topBusFromFilter : true;
               const matchesTo = topBusToFilter ? bus.to === topBusToFilter : true;
               const matchesType = topBusTypeFilter ? bus.type === topBusTypeFilter : true;
@@ -1826,10 +1857,7 @@ export function LandingPage() {
             {/* Column 1 - Logo & About */}
             <div>
               <div className="flex items-center gap-2.5 mb-4">
-                <div className="w-9 h-9 bg-blue-600 rounded-lg flex items-center justify-center">
-                  <Bus className="w-5 h-5 text-white" />
-                </div>
-                <span className="text-xl font-bold text-white">BusBook</span>
+                <img src="/logo.png" alt="Logo" className="h-10 object-contain" />
               </div>
               <p className="text-sm text-gray-400 mb-4">
                 Your journey, our priority! Book safe, travel happy!
@@ -1867,7 +1895,7 @@ export function LandingPage() {
               <ul className="space-y-2.5">
                 {["Buses", "Routes", "Offers", "Track Booking"].map((link) => (
                   <li key={link}>
-                    <button onClick={() => navigate("/")} className="text-sm text-gray-400 hover:text-white transition-colors">
+                    <button onClick={() => navigate(link === "Track Booking" ? "/track" : "/")} className="text-sm text-gray-400 hover:text-white transition-colors">
                       {link}
                     </button>
                   </li>
@@ -1896,15 +1924,15 @@ export function LandingPage() {
               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-8 text-sm text-gray-400">
                 <span className="flex items-center gap-2">
                   <Mail className="w-4 h-4" />
-                  support@busbook.com
+                  Bhinderbusservice@gmail.com
                 </span>
                 <span className="flex items-center gap-2">
                   <Phone className="w-4 h-4" />
-                  +91 98765 43210
+                  +91 8092000025
                 </span>
                 <span className="flex items-center gap-2">
                   <MapPin className="w-4 h-4" />
-                  Delhi, India - 110001
+                  132/15 , Ind.Area , Near SBI Bank , Patiala Road , Cheeka
                 </span>
               </div>
               

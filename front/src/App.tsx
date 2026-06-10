@@ -18,6 +18,7 @@ import { DashboardPage } from "@/components/pages/dashboard-page";
 import { BookingsPage } from "@/components/pages/bookings-page";
 import { BusesPage } from "@/components/pages/buses-page";
 import { RoutesPage } from "@/components/pages/routes-page";
+import { TrackingPage } from "@/components/tracking/tracking-page";
 import { SchedulesPage } from "@/components/pages/schedules-page";
 import { TravelersPage } from "@/components/pages/travelers-page";
 import { DriversPage } from "@/components/pages/drivers-page";
@@ -96,6 +97,7 @@ export default function App() {
         {/* Public Routes */}
         <Route path="/" element={<><LandingPage /><AdminLoginModal /></>} />
         <Route path="/booking" element={<BookingPage />} />
+        <Route path="/track" element={<TrackingPage />} />
         <Route path="/routes" element={<PublicRoutesPage />} />
         <Route path="/buses" element={<PublicBusesPage />} />
         <Route path="/schedule/:id" element={<ScheduleDetailPage />} />

@@ -29,6 +29,10 @@ import {
   Activity,
   Wind,
   User,
+  ShieldCheck,
+  Wifi,
+  Clock,
+  Tag,
 } from "lucide-react";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
@@ -44,7 +48,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { usePublicBuses } from "@/hooks/use-search";
-import { cn } from "@/lib/utils";
+import { cn, getImageUrl } from "@/lib/utils";
 
 export function PublicBusesPage() {
   const navigate = useNavigate();
@@ -55,6 +59,14 @@ export function PublicBusesPage() {
 
   const { data: buses, isLoading: loadingBuses } = usePublicBuses();
   const [viewingBus, setViewingBus] = useState<any>(null);
+  const [expandedBusIds, setExpandedBusIds] = useState<number[]>([]);
+
+  const toggleBusExpand = (e: React.MouseEvent, busId: number) => {
+    e.stopPropagation();
+    setExpandedBusIds(prev =>
+      prev.includes(busId) ? prev.filter(id => id !== busId) : [...prev, busId]
+    );
+  };
 
   // Extract unique origin, destination cities, and types served by any bus
   const fromCities = Array.from(new Set(buses?.flatMap((b: any) => b.from_cities || []) || [])) as string[];
@@ -89,15 +101,12 @@ export function PublicBusesPage() {
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
             <div className="flex items-center gap-2.5 cursor-pointer" onClick={() => navigate("/")}>
-              <div className="w-9 h-9 bg-blue-600 rounded-lg flex items-center justify-center">
-                <Bus className="w-5 h-5 text-white" />
-              </div>
-              <span className="text-xl font-bold text-blue-600">BusBook</span>
+              <img src="/logo.png" alt="Logo" className="h-18 object-contain" />
             </div>
 
             {/* Desktop Nav Links */}
             <nav className="hidden lg:flex items-center gap-1">
-              {["Home", "Buses", "Routes", "Offers", "Track Booking", "Help"].map(
+              {["Home", "Buses", "Routes", "Track Booking"].map(
                 (link, i) => (
                   <button
                     key={link}
@@ -105,6 +114,7 @@ export function PublicBusesPage() {
                       if (i === 0) navigate("/");
                       if (i === 1) navigate("/buses");
                       if (i === 2) navigate("/routes");
+                      if (i === 3) navigate("/track");
                     }}
                     className={cn(
                       "px-3 py-2 text-sm font-medium rounded-md transition-colors",
@@ -123,7 +133,10 @@ export function PublicBusesPage() {
             <div className="hidden lg:flex items-center gap-3">
               <Button
                 className="relative h-10 px-6 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold rounded-full shadow-lg shadow-blue-200 transition-all duration-300 hover:scale-105 active:scale-95 group overflow-hidden"
-                onClick={() => navigate("/booking")}
+                onClick={() => {
+                  localStorage.setItem("scroll_to_schedules", "true");
+                  navigate("/");
+                }}
               >
                 <span className="relative z-10 flex items-center gap-2">
                   <Sparkles className="w-4 h-4 animate-pulse" />
@@ -147,7 +160,7 @@ export function PublicBusesPage() {
         {mobileMenuOpen && (
           <div className="lg:hidden bg-white border-t border-gray-100 shadow-lg">
             <div className="px-4 py-3 space-y-1">
-              {["Home", "Buses", "Routes", "Offers", "Track Booking", "Help"].map(
+              {["Home", "Buses", "Routes", "Track Booking"].map(
                 (link, i) => (
                   <a
                     key={link}
@@ -157,6 +170,7 @@ export function PublicBusesPage() {
                       if (i === 0) navigate("/");
                       if (i === 1) navigate("/buses");
                       if (i === 2) navigate("/routes");
+                      if (i === 3) navigate("/track");
                       setMobileMenuOpen(false);
                     }}
                     className={cn(
@@ -173,7 +187,11 @@ export function PublicBusesPage() {
               <div className="pt-3">
                 <Button
                   className="relative h-11 w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center gap-2"
-                  onClick={() => { navigate("/booking"); setMobileMenuOpen(false); }}
+                  onClick={() => {
+                    localStorage.setItem("scroll_to_schedules", "true");
+                    navigate("/");
+                    setMobileMenuOpen(false);
+                  }}
                 >
                   <Sparkles className="w-4 h-4 animate-pulse" />
                   Book Now
@@ -185,35 +203,177 @@ export function PublicBusesPage() {
       </header>
 
       {/* ═══ HERO BANNER ═══ */}
-      <section className="relative pt-24 pb-16 bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white overflow-hidden">
-        <div className="absolute top-0 right-0 w-[400px] h-[400px] rounded-full bg-blue-500/10 blur-3xl -mr-20 -mt-20 pointer-events-none" />
-        <div className="absolute bottom-0 left-0 w-[300px] h-[300px] rounded-full bg-indigo-500/10 blur-3xl -ml-20 -mb-20 pointer-events-none" />
+      <section className="relative pt-20 pb-12 bg-slate-950 text-white overflow-hidden select-none">
+        {/* Dynamic Glowing Background Blobs */}
+        <div className="absolute top-0 right-1/4 w-[500px] h-[500px] rounded-full bg-blue-600/10 blur-[120px] pointer-events-none animate-pulse" />
+        <div className="absolute -bottom-20 left-1/4 w-[400px] h-[400px] rounded-full bg-indigo-600/10 blur-[100px] pointer-events-none" />
+        
+        {/* Fine grid background overlay */}
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#0f172a_1px,transparent_1px),linear-gradient(to_bottom,#0f172a_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_70%,transparent_100%)] opacity-30 pointer-events-none" />
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
-          <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight mb-4 animate-fade-in">
-            Our Premium Fleet
-          </h1>
-          <p className="text-base sm:text-xl text-blue-100 max-w-2xl mx-auto font-light leading-relaxed">
-            Browse our world-class coaches and sleeper buses equipped with state-of-the-art amenities for a safe and comfortable travel experience.
-          </p>
+        {/* Dynamic Road & Speedlines SVG Background (Stretches across screen) */}
+        <div className="absolute inset-0 z-0 opacity-25 lg:opacity-40 pointer-events-none">
+          <svg viewBox="0 0 1440 320" fill="none" className="w-full h-full object-cover object-bottom">
+            <defs>
+              <linearGradient id="roadGrad" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stopColor="#1e293b" stopOpacity="0.8" />
+                <stop offset="50%" stopColor="#3b82f6" stopOpacity="0.3" />
+                <stop offset="100%" stopColor="#1e293b" stopOpacity="0.8" />
+              </linearGradient>
+              <linearGradient id="glowGrad" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stopColor="#3b82f6" stopOpacity="0" />
+                <stop offset="50%" stopColor="#6366f1" stopOpacity="1" />
+                <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            {/* The Road shape */}
+            <path d="M 0 320 Q 360 220 720 250 T 1440 280 L 1440 320 L 0 320 Z" fill="url(#roadGrad)" />
+            {/* Highway Centerline */}
+            <path d="M 0 320 Q 360 220 720 250 T 1440 280" stroke="#60a5fa" strokeWidth="2.5" strokeDasharray="15 25" opacity="0.6" />
+            {/* Speed trails */}
+            <path d="M -50 240 Q 320 180 700 190 T 1490 220" stroke="url(#glowGrad)" strokeWidth="3" opacity="0.7" />
+            <path d="M -100 200 Q 300 150 710 160 T 1540 200" stroke="url(#glowGrad)" strokeWidth="1.5" strokeDasharray="10 30" opacity="0.4" />
+            <path d="M 50 280 Q 400 240 730 230 T 1390 260" stroke="#38bdf8" strokeWidth="1" opacity="0.5" />
+          </svg>
+        </div>
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+            {/* Left Column: Title & Text Info */}
+            <div className="lg:col-span-7 text-left space-y-5">
+              {/* Badge Tag */}
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-xs font-black uppercase tracking-widest text-blue-400">
+                <Sparkles className="w-3.5 h-3.5 text-blue-400 animate-pulse" />
+                World-Class Journeys
+              </div>
+
+              <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-none text-white animate-fade-in">
+                Our Premium <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-indigo-300 to-sky-400">Fleet</span>
+              </h1>
+
+              <p className="text-sm sm:text-base text-slate-350 max-w-xl font-medium leading-relaxed">
+                Browse our world-class coaches and sleeper buses equipped with state-of-the-art amenities. Experience comfort, safety, and punctuality on every ride.
+              </p>
+
+              {/* Little trust indicators inside hero */}
+              <div className="pt-2 flex flex-wrap gap-4 text-xs font-bold text-slate-400">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-1.5 h-1.5 bg-blue-500 rounded-full" />
+                  <span>Wi-Fi Enabled</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-1.5 h-1.5 bg-blue-500 rounded-full" />
+                  <span>Full A/C sleeper</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-1.5 h-1.5 bg-blue-500 rounded-full" />
+                  <span>GPS Tracking</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Column: Premium Coach Bus Illustration (Shown on all viewports) */}
+            <div className="col-span-1 lg:col-span-5 relative mt-4 lg:mt-0">
+              <div className="relative w-full h-[180px] sm:h-[220px] flex items-center justify-center">
+                {/* Glowing aura around illustration */}
+                <div className="absolute w-[200px] h-[200px] sm:w-[280px] sm:h-[280px] rounded-full bg-blue-600/20 blur-[40px] sm:blur-[60px] pointer-events-none" />
+
+                {/* Stylish Premium Coach SVG Illustration */}
+                <svg viewBox="0 0 400 200" fill="none" className="w-full max-w-[320px] sm:max-w-none h-full drop-shadow-2xl filter drop-shadow-[0_10px_15px_rgba(59,130,246,0.3)]">
+                  <defs>
+                    <linearGradient id="busBodyGrad" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0%" stopColor="#2563eb" />
+                      <stop offset="50%" stopColor="#1d4ed8" />
+                      <stop offset="100%" stopColor="#0f172a" />
+                    </linearGradient>
+                    <linearGradient id="windshieldGrad" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0%" stopColor="#93c5fd" />
+                      <stop offset="100%" stopColor="#2563eb" stopOpacity="0.4" />
+                    </linearGradient>
+                    <linearGradient id="glassGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#ffffff" stopOpacity="0.75" />
+                      <stop offset="50%" stopColor="#ffffff" stopOpacity="0.1" />
+                      <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
+                    </linearGradient>
+                    <linearGradient id="lightBeamGrad" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#fef08a" stopOpacity="0.8" />
+                      <stop offset="100%" stopColor="#fef08a" stopOpacity="0" />
+                    </linearGradient>
+                  </defs>
+
+                  {/* Ground Shadow */}
+                  <ellipse cx="200" cy="180" rx="160" ry="10" fill="#000000" opacity="0.45" />
+
+                  {/* Rear Wheel Shadow & Light Glow */}
+                  <circle cx="90" cy="165" r="28" fill="#1e293b" opacity="0.3" />
+                  <circle cx="310" cy="165" r="28" fill="#1e293b" opacity="0.3" />
+
+                  {/* Bus Body Base */}
+                  <path d="M 40 80 C 40 55, 60 40, 80 40 L 330 40 C 350 40, 365 52, 365 72 L 365 155 C 365 162, 358 168, 350 168 L 335 168 C 335 152, 320 138, 305 138 C 290 138, 275 152, 275 168 L 130 168 C 130 152, 115 138, 100 138 C 85 138, 70 152, 70 168 L 50 168 C 45 168, 40 163, 40 155 Z" fill="url(#busBodyGrad)" />
+
+                  {/* Side Accent Chrome/Silver Stripe */}
+                  <path d="M 60 115 Q 180 120, 320 100 C 345 96, 360 88, 362 82" stroke="#e2e8f0" strokeWidth="2.5" strokeLinecap="round" opacity="0.8" />
+                  <path d="M 70 122 Q 180 126, 310 112" stroke="#60a5fa" strokeWidth="1.5" strokeLinecap="round" opacity="0.5" />
+
+                  {/* Windshield (Front) */}
+                  <path d="M 325 45 L 350 45 C 358 45, 363 52, 363 62 L 361 90 L 325 90 Z" fill="url(#windshieldGrad)" />
+                  <path d="M 328 48 L 348 48 C 353 48, 356 52, 356 58 L 354 82 L 328 82 Z" fill="#ffffff" opacity="0.15" />
+
+                  {/* Side Windows Grid */}
+                  <path d="M 85 48 H 135 V 90 H 85 Z" fill="#0f172a" />
+                  <path d="M 142 48 H 192 V 90 H 142 Z" fill="#0f172a" />
+                  <path d="M 199 48 H 249 V 90 H 199 Z" fill="#0f172a" />
+                  <path d="M 256 48 H 318 V 90 H 256 Z" fill="#0f172a" />
+
+                  {/* Gloss / Reflection Overlay on Windows */}
+                  <path d="M 85 48 L 115 48 L 85 90 Z" fill="url(#glassGrad)" />
+                  <path d="M 142 48 L 172 48 L 142 90 Z" fill="url(#glassGrad)" />
+                  <path d="M 199 48 L 229 48 L 199 90 Z" fill="url(#glassGrad)" />
+                  <path d="M 256 48 L 290 48 L 256 90 Z" fill="url(#glassGrad)" />
+
+                  {/* Wheels (Detailed with chrome rims) */}
+                  {/* Wheel 1 (Front-Rightish) */}
+                  <circle cx="100" cy="165" r="24" fill="#0f172a" stroke="#475569" strokeWidth="2.5" />
+                  <circle cx="100" cy="165" r="13" fill="#94a3b8" />
+                  <circle cx="100" cy="165" r="6" fill="#f1f5f9" />
+                  {/* Wheel 2 (Rear) */}
+                  <circle cx="305" cy="165" r="24" fill="#0f172a" stroke="#475569" strokeWidth="2.5" />
+                  <circle cx="305" cy="165" r="13" fill="#94a3b8" />
+                  <circle cx="305" cy="165" r="6" fill="#f1f5f9" />
+
+                  {/* Headlights (Front side) & Glowing Light Beams */}
+                  <path d="M 363 125 H 365 V 132 H 363 Z" fill="#fef08a" />
+                  {/* Light Beam */}
+                  <polygon points="365,123 450,90 450,170 365,134" fill="url(#lightBeamGrad)" />
+
+                  {/* Tail Lights (Rear side) */}
+                  <path d="M 40 120 H 42 V 135 H 40 Z" fill="#ef4444" />
+
+                  {/* Roof air conditioner / design accents */}
+                  <path d="M 130 40 L 260 40 L 250 34 L 140 34 Z" fill="#1e3a8a" />
+                  <path d="M 275 40 L 305 40 L 300 36 L 280 36 Z" fill="#3b82f6" />
+                </svg>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
       {/* ═══ MAIN SEARCH & LISTING ═══ */}
       <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 w-full">
         {/* Filters Container */}
-        <div className="max-w-4xl mx-auto mb-10 bg-white rounded-2xl border border-gray-100 shadow-md p-4 sm:p-5">
-          <div className="flex flex-col sm:flex-row items-center gap-4">
+        <div className="max-w-4xl mx-auto mb-8 bg-white rounded-2xl border border-gray-100 shadow-md p-3 sm:p-5">
+          <div className="grid grid-cols-2 lg:flex lg:flex-row items-end gap-3 lg:gap-4">
             
             {/* From City Filter */}
-            <div className="w-full space-y-1 text-left">
-              <label className="text-xs font-bold text-gray-400 uppercase tracking-wider block">From City</label>
+            <div className="col-span-1 lg:flex-1 space-y-1 text-left">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">From City</label>
               <select
                 value={fromCityFilter}
                 onChange={(e) => setFromCityFilter(e.target.value)}
-                className="w-full h-11 px-3.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer"
+                className="w-full h-10 px-3 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer"
               >
-                <option value="">All Origin Cities</option>
+                <option value="">All Origin</option>
                 {fromCities.map((city) => (
                   <option key={city} value={city}>{city}</option>
                 ))}
@@ -221,14 +381,14 @@ export function PublicBusesPage() {
             </div>
 
             {/* To City Filter */}
-            <div className="w-full space-y-1 text-left">
-              <label className="text-xs font-bold text-gray-400 uppercase tracking-wider block">To City</label>
+            <div className="col-span-1 lg:flex-1 space-y-1 text-left">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">To City</label>
               <select
                 value={toCityFilter}
                 onChange={(e) => setToCityFilter(e.target.value)}
-                className="w-full h-11 px-3.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer"
+                className="w-full h-10 px-3 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer"
               >
-                <option value="">All Destination Cities</option>
+                <option value="">All Destination</option>
                 {toCities.map((city) => (
                   <option key={city} value={city}>{city}</option>
                 ))}
@@ -236,12 +396,12 @@ export function PublicBusesPage() {
             </div>
 
             {/* Bus Type Filter */}
-            <div className="w-full space-y-1 text-left">
-              <label className="text-xs font-bold text-gray-400 uppercase tracking-wider block">Bus Type</label>
+            <div className="col-span-2 lg:flex-1 space-y-1 text-left">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Bus Type</label>
               <select
                 value={busTypeFilter}
                 onChange={(e) => setBusTypeFilter(e.target.value)}
-                className="w-full h-11 px-3.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer"
+                className="w-full h-10 px-3 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer"
               >
                 <option value="">All Bus Types</option>
                 {busTypes.map((type) => (
@@ -252,7 +412,7 @@ export function PublicBusesPage() {
 
             {/* Reset Button */}
             {(fromCityFilter || toCityFilter || busTypeFilter) && (
-              <div className="shrink-0 w-full sm:w-auto mt-0 sm:mt-5">
+              <div className="col-span-2 lg:shrink-0 lg:w-auto">
                 <Button
                   onClick={() => {
                     setFromCityFilter("");
@@ -260,9 +420,9 @@ export function PublicBusesPage() {
                     setBusTypeFilter("");
                   }}
                   variant="outline"
-                  className="w-full sm:w-auto h-11 px-5 border-blue-600 text-blue-600 hover:bg-blue-50 rounded-xl gap-2 font-semibold text-sm transition-all"
+                  className="w-full lg:w-auto h-10 px-4 border-blue-600 text-blue-600 hover:bg-blue-50 rounded-xl gap-2 font-semibold text-xs transition-all"
                 >
-                  <RotateCcw className="w-4 h-4" />
+                  <RotateCcw className="w-3.5 h-3.5" />
                   Reset
                 </Button>
               </div>
@@ -298,59 +458,92 @@ export function PublicBusesPage() {
           <div className="space-y-3.5">
             {filteredBuses?.map((bus: any) => {
               const firstLetter = bus.operator.charAt(0);
+              const isExpanded = expandedBusIds.includes(bus.id);
 
               return (
                 <div
                   key={bus.id}
-                  onClick={() => setViewingBus(bus)}
-                  className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-5 hover:shadow-md hover:border-blue-200 transition-all duration-200 cursor-pointer"
+                  onClick={(e) => toggleBusExpand(e, bus.id)}
+                  className={cn(
+                    "bg-white rounded-xl border border-gray-200 shadow-sm p-3 sm:p-4 hover:shadow-md hover:border-blue-200 transition-all duration-200 cursor-pointer",
+                    isExpanded && "border-blue-300 ring-1 ring-blue-50/50 shadow-md"
+                  )}
                 >
-                  <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-                    {/* Bus Image Thumbnail */}
-                    <div className="w-24 h-16 rounded-lg overflow-hidden border border-gray-150 bg-gray-50 shrink-0 shadow-xs">
-                      {bus.images && bus.images.length > 0 ? (
+                  <div className="flex flex-col lg:flex-row lg:items-center gap-3 lg:gap-6">
+                    {/* Top Row for Mobile (Image + Operator Info) */}
+                    <div className="flex items-center gap-3 lg:contents">
+                      {/* Bus Image Thumbnail */}
+                      <div className="w-16 h-12 sm:w-24 sm:h-16 rounded-lg overflow-hidden border border-gray-150 bg-gray-50 shrink-0 shadow-xs">
                         <img
-                          src={`${import.meta.env.VITE_STORAGE_URL || 'http://localhost:8000/storage'}/${bus.images[0]}`}
+                          src={getImageUrl(bus.images, bus.id)}
                           alt={bus.name}
                           className="w-full h-full object-cover hover:scale-110 transition-transform duration-300"
+                          onError={(e) => { e.currentTarget.src = "/bus-1.png"; }}
                         />
-                      ) : (
-                        <div className="w-full h-full bg-blue-50 flex items-center justify-center">
-                          <Bus className="w-6 h-6 text-blue-500" />
-                        </div>
-                      )}
-                    </div>
+                      </div>
 
-                    {/* Brand/Operator Column */}
-                    <div className="lg:w-[250px] shrink-0">
-                      <div className="flex items-center gap-2.5 mb-1.5">
-                        <div>
-                          <span className="text-sm font-bold text-gray-900 block leading-tight">{bus.name}</span>
-                          <span className="text-[11px] text-gray-400 font-semibold">{bus.operator}</span>
+                      {/* Brand/Operator Column */}
+                      <div className="flex-1 lg:w-[200px] shrink-0 text-left">
+                        <div className="flex flex-col mb-0.5">
+                          <span className="text-xs sm:text-sm font-black text-blue-600 block leading-tight">{bus.name}</span>
+                          <span className="text-[10px] text-violet-600 font-bold">{bus.operator}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1">
+                            <Activity className="w-2.5 h-2.5 text-gray-400" />
+                            <p className="text-[10px] text-black font-semibold uppercase">{bus.number}</p>
+                          </div>
+                          <div className="flex items-center gap-1 text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full">
+                            <ShieldCheck className="w-2.5 h-2.5" />
+                            <span>Safe</span>
+                          </div>
+                          <div className="flex items-center gap-1 text-[9px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full">
+                            <Wifi className="w-2.5 h-2.5" />
+                            <span>Wi-Fi</span>
+                          </div>
+                          <div className="flex items-center gap-1 text-[9px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full">
+                            <Clock className="w-2.5 h-2.5" />
+                            <span>Punctual</span>
+                          </div>
+                          <div className="flex items-center gap-1 text-[9px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded-full">
+                            <Tag className="w-2.5 h-2.5" />
+                            <span>Best Price</span>
+                          </div>
                         </div>
                       </div>
-                      <p className="text-[11px] text-gray-500 font-medium">{bus.number}</p>
                     </div>
 
-                    {/* Specifications Section */}
-                    <div className="lg:w-[180px] shrink-0">
-                      <p className="text-sm font-bold text-gray-800 leading-tight">{bus.type}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">Vehicle Type</p>
-                    </div>
+                    {/* Middle Section for Mobile (Type + Seats) */}
+                    <div className="grid grid-cols-2 lg:flex lg:flex-row gap-3 lg:gap-6 border-y lg:border-none border-gray-50 py-2 lg:py-0">
+                      {/* Specifications Section */}
+                      <div className="lg:w-[150px] shrink-0 text-left flex items-start gap-2">
+                        <div className="p-1.5 rounded bg-emerald-50 text-emerald-600">
+                          <Fuel className="w-3 h-3" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-extrabold text-emerald-600 leading-tight">{bus.type}</p>
+                          <p className="text-[10px] text-black font-semibold mt-0.5">Vehicle Type</p>
+                        </div>
+                      </div>
 
-                    <div className="lg:w-[150px] shrink-0">
-                      <p className="text-sm font-bold text-gray-800 leading-tight">{bus.seats} Seats</p>
-                      <p className="text-xs text-gray-400 mt-0.5">Seating Capacity</p>
+                      <div className="lg:w-[130px] shrink-0 text-left flex items-start gap-2">
+                        <div className="p-1.5 rounded bg-indigo-50 text-indigo-600">
+                          <Users className="w-3 h-3" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-extrabold text-indigo-600 leading-tight">{bus.seats} Seats</p>
+                          <p className="text-[10px] text-black font-semibold mt-0.5">Capacity</p>
+                        </div>
+                      </div>
                     </div>
 
                     {/* Amenities List */}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-gray-400 font-semibold mb-1">Key Amenities</p>
+                    <div className="flex-1 min-w-0 text-left hidden sm:block">
                       <div className="flex flex-wrap gap-1">
-                        {bus.amenities.map((amenity: string) => (
+                        {bus.amenities.slice(0, 4).map((amenity: string) => (
                           <span
                             key={amenity}
-                            className="text-[10px] text-gray-600 bg-gray-50 border border-gray-150 px-2 py-0.5 rounded font-semibold"
+                            className="text-[9px] text-black bg-gray-50 border border-gray-200 px-1.5 py-0.5 rounded font-semibold"
                           >
                             {amenity}
                           </span>
@@ -358,22 +551,151 @@ export function PublicBusesPage() {
                       </div>
                     </div>
 
-                    {/* Booking CTA Button */}
-                    <div className="flex items-center gap-4 lg:ml-auto lg:shrink-0">
-                      <div className="flex flex-col items-end gap-1">
-                        <Button
-                          className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-md px-5 h-9 shadow-sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleBookNow(bus);
-                          }}
-                        >
-                          Book Ride
-                        </Button>
-                        <span className="text-[10px] text-gray-400 font-semibold">Premium Travel</span>
+                    {/* View Details CTA Button */}
+                    <div className="flex items-center justify-between lg:justify-end gap-3 lg:ml-auto lg:shrink-0 pt-1 lg:pt-0">
+                      <div className="flex items-center gap-1.5 bg-slate-50 px-2 py-1 rounded border border-slate-100">
+                        <Settings2 className="w-3 h-3 text-blue-500" />
+                        <span className="text-[9px] text-black font-semibold">Premium</span>
                       </div>
+                      <Button
+                        className={cn(
+                          "text-[11px] font-bold rounded-lg px-4 h-8 shadow-sm transition-all w-32 lg:w-auto",
+                          isExpanded 
+                            ? "bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200" 
+                            : "bg-blue-600 hover:bg-blue-700 text-white"
+                        )}
+                        onClick={(e) => toggleBusExpand(e, bus.id)}
+                      >
+                        {isExpanded ? "Hide" : "View Details"}
+                      </Button>
                     </div>
                   </div>
+
+                  {/* Expanded Section */}
+                  {isExpanded && (
+                    <div 
+                      onClick={(e) => e.stopPropagation()} 
+                      className="mt-4 pt-4 border-t border-gray-150 space-y-4 cursor-default text-left select-none animate-in fade-in slide-in-from-top-2 duration-200"
+                    >
+                      {/* 3-Column Content Grid */}
+                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                        {/* Column 1 - Primary Image & Thumbnails */}
+                        <div className="space-y-2">
+                          <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                            <div className="w-1 h-3 bg-blue-600 rounded-full" />
+                            Vehicle Photos
+                          </h4>
+                          <div className="aspect-[16/9] lg:aspect-video w-full rounded-xl overflow-hidden border border-gray-150 bg-gray-50 shadow-2xs">
+                            <img 
+                              src={getImageUrl(bus.images, bus.id)} 
+                              alt={bus.name} 
+                              className="w-full h-full object-cover" 
+                              onError={(e) => { e.currentTarget.src = "/bus-1.png"; }}
+                            />
+                          </div>
+                          {/* Additional Thumbnails */}
+                          {bus.images && (typeof bus.images === 'string' ? JSON.parse(bus.images) : bus.images).length > 1 && (
+                            <div className="flex gap-1.5 overflow-x-auto pb-1 custom-scrollbar">
+                              {(typeof bus.images === 'string' ? JSON.parse(bus.images) : bus.images).map((img: string, idx: number) => (
+                                <div key={idx} className="w-10 h-10 rounded-lg overflow-hidden border border-gray-100 bg-gray-50 shrink-0">
+                                  <img 
+                                    src={getImageUrl(img, bus.id)} 
+                                    alt="Thumbnail" 
+                                    className="w-full h-full object-cover" 
+                                    onError={(e) => { e.currentTarget.src = "/bus-1.png"; }}
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Column 2 - Technical Specifications */}
+                        <div className="lg:col-span-1">
+                          <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                            <div className="w-1 h-3 bg-blue-600 rounded-full" />
+                            Vehicle Specs
+                          </h4>
+                          <div className="grid grid-cols-3 lg:grid-cols-2 gap-1.5 sm:gap-2">
+                            {[
+                              { label: "Operator", value: bus.operator || "N/A", icon: User, color: "text-indigo-600", bg: "bg-indigo-50/40" },
+                              { label: "Layout", value: bus.layout_type || "N/A", icon: Settings2, color: "text-rose-600", bg: "bg-rose-50/40" },
+                              { label: "Reg No.", value: bus.bus_number || bus.number, icon: FileText, color: "text-blue-600", bg: "bg-blue-50/50" },
+                              { label: "Type", value: bus.bus_type || bus.type, icon: Bus, color: "text-purple-600", bg: "bg-purple-50/50" },
+                              { label: "Seats", value: `${bus.total_seats || bus.seats}`, icon: Users, color: "text-amber-600", bg: "bg-amber-50/50" },
+                              { label: "Fuel", value: bus.fuel_type || "N/A", icon: Fuel, color: "text-orange-650", bg: "bg-orange-50/50" },
+                            ].map((item, idx) => {
+                              const ItemIcon = item.icon;
+                              return (
+                                <div key={idx} className={cn("flex flex-col min-[400px]:flex-row items-center min-[400px]:items-start gap-1 min-[400px]:gap-2 p-1.5 rounded-lg border border-gray-100 bg-slate-50/30", item.bg)}>
+                                  <div className="w-5 h-5 min-[400px]:w-6 min-[400px]:h-6 rounded bg-white flex items-center justify-center border border-gray-100 shrink-0">
+                                    <ItemIcon className={cn("w-2.5 h-2.5 min-[400px]:w-3 min-[400px]:h-3", item.color)} />
+                                  </div>
+                                  <div className="min-w-0 flex-1 text-center min-[400px]:text-left">
+                                    <span className="block text-[7px] min-[400px]:text-[8px] uppercase tracking-wider font-bold text-gray-400 leading-none mb-0.5">{item.label}</span>
+                                    <span className="block text-[9px] min-[400px]:text-[11px] font-bold text-gray-700 truncate">{item.value}</span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Column 3 - Compliance & Amenities */}
+                        <div className="space-y-3 lg:col-span-1">
+                          {/* Documents */}
+                          <div>
+                            <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                              <div className="w-1 h-3 bg-blue-600 rounded-full" />
+                              Compliance
+                            </h4>
+                            <div className="grid grid-cols-3 lg:grid-cols-1 gap-1.5 sm:gap-2">
+                              {[
+                                { label: "Insurance", number: bus.insurance_number, valid: bus.insurance_valid_till },
+                                { label: "Fitness", number: bus.fitness_certificate_number, valid: bus.fitness_valid_till },
+                                { label: "PUC", number: bus.puc_number, valid: bus.puc_valid_till },
+                              ].map((item, idx) => (
+                                <div key={idx} className="p-1.5 min-[400px]:p-2 rounded-lg border border-gray-100 bg-slate-50/20 flex flex-col justify-between shadow-2xs">
+                                  <div className="flex justify-between items-start">
+                                    <span className="text-[8px] min-[400px]:text-[9px] font-bold text-gray-800 leading-tight">{item.label}</span>
+                                    <span className={cn(
+                                      "hidden min-[400px]:block text-[7px] min-[400px]:text-[8px] font-black uppercase",
+                                      item.valid && new Date(item.valid) < new Date() ? "text-red-500" : "text-emerald-600"
+                                    )}>
+                                      {item.valid ? "Active" : "N/A"}
+                                    </span>
+                                  </div>
+                                  <div className="mt-1 flex flex-col min-[400px]:flex-row min-[400px]:items-center justify-between text-[7px] min-[400px]:text-[8px] text-gray-400">
+                                    <span className="truncate max-w-full min-[400px]:max-w-[60px]">{item.number || "N/A"}</span>
+                                    <span className="font-bold hidden min-[400px]:block">{item.valid ? new Date(item.valid).toLocaleDateString("en-IN", { day: 'numeric', month: 'short' }) : ""}</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Amenities */}
+                          <div>
+                            <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 flex items-center gap-2">
+                              <div className="w-1 h-3 bg-blue-600 rounded-full" />
+                              Comfort
+                            </h4>
+                            <div className="flex flex-wrap gap-1">
+                              {bus.amenities && bus.amenities.length > 0 ? (
+                                bus.amenities.map((am: string, idx: number) => (
+                                  <Badge key={idx} variant="secondary" className="bg-blue-50 text-blue-600 border border-blue-100/50 text-[9px] px-1.5 py-0">
+                                    {am}
+                                  </Badge>
+                                ))
+                              ) : (
+                                <span className="text-[10px] text-gray-400 font-medium">No amenities</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -414,10 +736,7 @@ export function PublicBusesPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-12">
             <div>
               <div className="flex items-center gap-2.5 mb-4">
-                <div className="w-9 h-9 bg-blue-600 rounded-lg flex items-center justify-center">
-                  <Bus className="w-5 h-5 text-white" />
-                </div>
-                <span className="text-xl font-bold text-white">BusBook</span>
+                <img src="/logo.png" alt="Logo" className="h-10 object-contain" />
               </div>
               <p className="text-sm text-gray-400 mb-4 font-light">
                 Connecting India's cities with comfortable, safe, and modern travels. Your safety is our absolute priority.
@@ -565,12 +884,13 @@ function PublicBusViewDialog({ bus, open, onOpenChange }: { bus: any, open: bool
                   Vehicle Photos
                 </h4>
                 <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-3">
-                  {bus.images.map((img: string, idx: number) => (
+                  {(Array.isArray(bus.images) ? bus.images : (typeof bus.images === 'string' ? JSON.parse(bus.images) : [])).map((img: string, idx: number) => (
                     <div key={idx} className="aspect-square rounded-lg overflow-hidden border border-gray-100">
                       <img 
-                        src={`${import.meta.env.VITE_STORAGE_URL || 'http://localhost:8000/storage'}/${img}`} 
+                        src={getImageUrl(img, bus.id)} 
                         alt="Bus" 
                         className="w-full h-full object-cover hover:scale-110 transition-transform duration-300" 
+                        onError={(e) => { e.currentTarget.src = "/bus-1.png"; }}
                       />
                     </div>
                   ))}

@@ -22,8 +22,27 @@ class BookingController extends Controller
 
     public function index(Request $request)
     {
-        $filters = $request->only(['search', 'status', 'per_page']);
-        return $this->bookingRepository->getAll($filters);
+        $filters = $request->only(['search', 'status', 'per_page', 'date_from', 'date_to']);
+        $bookings = $this->bookingRepository->getAll($filters);
+        $stats = $this->bookingRepository->getStats();
+
+        return response()->json([
+            'data' => $bookings->items(),
+            'meta' => [
+                'current_page' => $bookings->currentPage(),
+                'last_page' => $bookings->lastPage(),
+                'per_page' => $bookings->perPage(),
+                'total' => $bookings->total(),
+                'from' => $bookings->firstItem(),
+                'to' => $bookings->lastItem(),
+            ],
+            'stats' => $stats,
+        ]);
+    }
+
+    public function stats()
+    {
+        return response()->json($this->bookingRepository->getStats());
     }
 
     public function show($id)

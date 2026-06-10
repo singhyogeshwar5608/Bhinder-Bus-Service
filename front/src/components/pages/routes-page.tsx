@@ -102,13 +102,42 @@ function RouteViewDialog({ route, open, onOpenChange }: { route: any, open: bool
                   </div>
                 </div>
 
-                <div className="flex flex-col items-center gap-1 flex-1 px-4">
-                  <div className="w-full h-px bg-dashed border-t border-dashed border-gray-300 relative">
-                    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center shadow-sm">
-                      <ArrowRight className="w-4 h-4 text-blue-500" />
-                    </div>
-                  </div>
-                  <span className="text-[10px] font-bold text-gray-400 uppercase mt-4">{route.distance} KM • {route.duration}</span>
+                {/* Custom Winding Road SVG Connector */}
+                <div className="flex flex-col items-center justify-center flex-1 max-w-[200px] select-none px-4">
+                  <svg viewBox="0 0 160 40" fill="none" className="w-full h-10 drop-shadow-xs">
+                    {/* Winding road structure */}
+                    <path d="M 10 25 C 50 5, 110 45, 150 25" stroke="#e2e8f0" strokeWidth="6" strokeLinecap="round" fill="none" />
+                    <path d="M 10 25 C 50 5, 110 45, 150 25" stroke="#334155" strokeWidth="4" strokeLinecap="round" fill="none" />
+                    <path d="M 10 25 C 50 5, 110 45, 150 25" stroke="#ffffff" strokeWidth="1" strokeDasharray="3 4" strokeLinecap="round" fill="none" opacity="0.8" />
+                    
+                    {/* Start pin dot with pulse ring */}
+                    <circle cx="10" cy="25" r="4" fill="#2563eb" opacity="0.4">
+                      <animate attributeName="r" values="4;9;4" dur="2s" repeatCount="indefinite" />
+                      <animate attributeName="opacity" values="0.4;0;0.4" dur="2s" repeatCount="indefinite" />
+                    </circle>
+                    <circle cx="10" cy="25" r="4" fill="#2563eb" stroke="#ffffff" strokeWidth="1.5" />
+                    
+                    {/* Destination pin dot with pulse ring */}
+                    <circle cx="150" cy="25" r="4" fill="#10b981" opacity="0.4">
+                      <animate attributeName="r" values="4;9;4" dur="2s" repeatCount="indefinite" />
+                      <animate attributeName="opacity" values="0.4;0;0.4" dur="2s" repeatCount="indefinite" />
+                    </circle>
+                    <circle cx="150" cy="25" r="4" fill="#10b981" stroke="#ffffff" strokeWidth="1.5" />
+                    
+                    {/* Tiny stylized coach bus following the S-curve at the center */}
+                    <g transform="translate(80, 25) rotate(11)">
+                      {/* Bus Body */}
+                      <rect x="-8" y="-4.5" width="16" height="9" rx="2" fill="#2563eb" stroke="#ffffff" strokeWidth="1" />
+                      {/* Windshield */}
+                      <rect x="3" y="-3.5" width="4" height="7" rx="0.5" fill="#93c5fd" />
+                      {/* Wheels */}
+                      <circle cx="-4" cy="4.5" r="1.5" fill="#0f172a" />
+                      <circle cx="4" cy="4.5" r="1.5" fill="#0f172a" />
+                    </g>
+                  </svg>
+                  <span className="text-[10px] font-bold text-gray-400 uppercase mt-4">
+                    {route.distance ? `${route.distance} KM` : ""} {route.duration ? `• ${route.duration}` : ""}
+                  </span>
                 </div>
 
                 <div className="text-center md:text-right">
@@ -144,7 +173,7 @@ function RouteViewDialog({ route, open, onOpenChange }: { route: any, open: bool
               <div className="space-y-4">
                 <h4 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
                   <div className="w-1 h-4 bg-emerald-600 rounded-full" />
-                  Route Stoppages ({route.stops?.length || 0})
+                  Boarding Points & Fares (to {route.to_city}) ({route.stops?.length || 0})
                 </h4>
                 <div className="relative pl-6 space-y-6 before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-0.5 before:bg-emerald-100">
                   {route.stops && route.stops.length > 0 ? (
@@ -165,10 +194,11 @@ function RouteViewDialog({ route, open, onOpenChange }: { route: any, open: bool
                               </div>
                             </div>
                           </div>
-                          <div className="text-right ml-4">
+                          <div className="text-right ml-4 flex flex-col items-end gap-1">
                             <span className="text-xs font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg group-hover:bg-emerald-100 transition-colors border border-emerald-100">
                               ₹{stop.fare}
                             </span>
+                            <span className="text-[9px] font-bold text-gray-400">to {route.to_city}</span>
                           </div>
                         </div>
                       </div>
@@ -404,7 +434,7 @@ function AddRouteForm({ onBack, editData }: { onBack: () => void, editData?: any
               className="h-11 border-gray-200 focus:border-blue-300"
             />
           </FormField>
-          <FormField label="Total Fare (Optional)" helperText="Auto-calculated from last stop if 0">
+          <FormField label="Total Fare (Optional)" helperText="Auto-calculated from first boarding point if 0">
             <div className="relative">
               <Input
                 type="number"
@@ -477,10 +507,10 @@ function AddRouteForm({ onBack, editData }: { onBack: () => void, editData?: any
               {stops.map((stop, index) => (
                 <div key={index} className="flex flex-col md:flex-row items-end gap-4 p-4 bg-gray-50/50 rounded-xl border border-gray-100 relative group">
                   <div className="flex-1 w-full">
-                    <Label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">Stop Name</Label>
+                    <Label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">Boarding Point</Label>
                     <div className="relative">
                       <Input
-                        placeholder="e.g. Kashmiri Gate"
+                        placeholder="e.g. Gurgaon (Rajiv Chowk)"
                         value={stop.stop_name}
                         onChange={(e) => updateStop(index, 'stop_name', e.target.value)}
                         className="h-10 pl-9 border-gray-200 focus:border-blue-300 bg-white"
@@ -516,7 +546,7 @@ function AddRouteForm({ onBack, editData }: { onBack: () => void, editData?: any
                   </div>
 
                   <div className="w-full md:w-32">
-                    <Label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">Ticket Fare</Label>
+                    <Label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">Fare to Destination</Label>
                     <div className="relative">
                       <Input
                         type="number"
@@ -612,30 +642,26 @@ export function RoutesPage() {
   const meta = routesResponse?.meta;
   const stats = routesResponse?.stats;
 
-  const handleExport = () => {
-    if (routes.length === 0) return;
-    
-    const headers = ["ID", "From City", "Arrival Time", "To City", "Distance", "Total Fare", "Status"];
-    const csvData = routes.map((r: any) => [
-      r.id,
-      r.from_city,
-      r.from_city_arrival_time || "N/A",
-      r.to_city,
-      `${r.distance} km`,
-      r.total_fare,
-      r.status
-    ]);
-
-    const csvContent = [headers, ...csvData].map(e => e.join(",")).join("\n");
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    link.setAttribute("href", url);
-    link.setAttribute("download", `routes_export_${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleExport = async () => {
+    if (!routes.length) return;
+    try {
+      const jsPDF = (await import("jspdf")).default;
+      const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+      const pageW = pdf.internal.pageSize.getWidth(), pageH = pdf.internal.pageSize.getHeight();
+      const cols = ["From City", "Arrival", "To City", "Distance", "Total Fare", "Status"];
+      const colW = [40, 30, 40, 28, 28, 30];
+      let y = 10, rowH = 6;
+      const drawH = () => { pdf.setFillColor(37, 99, 235); pdf.rect(0, y, pageW, rowH + 2, "F"); pdf.setTextColor(255, 255, 255); pdf.setFont("helvetica", "bold"); pdf.setFontSize(7); let hx = 4; cols.forEach((c, i) => { pdf.text(c, hx + 1, y + 5); hx += colW[i]; }); y += rowH + 3; };
+      drawH(); pdf.setFont("helvetica", "normal"); pdf.setFontSize(6); pdf.setTextColor(30, 41, 59);
+      routes.forEach((r: any, idx: number) => {
+        if (y > pageH - 15) { pdf.addPage(); y = 10; drawH(); }
+        if (idx % 2 === 0) { pdf.setFillColor(248, 250, 252); pdf.rect(0, y - 1, pageW, rowH + 1, "F"); }
+        const vals = [r.from_city || "", r.from_city_arrival_time || "N/A", r.to_city || "", r.distance ? r.distance + " km" : "--", r.total_fare || "N/A", r.status || ""];
+        let vx = 4; vals.forEach((v, i) => { const d = typeof v === "string" ? v : String(v ?? ""); pdf.text(d.length > 20 ? d.slice(0, 18) + ".." : d, vx + 1, y + 4); vx += colW[i]; });
+        y += rowH + 1;
+      });
+      pdf.save(`routes-export-${new Date().toISOString().slice(0, 10)}.pdf`);
+    } catch { /* ignore */ }
   };
 
   const resetFilters = () => {

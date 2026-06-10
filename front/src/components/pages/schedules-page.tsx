@@ -79,7 +79,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { cn } from "@/lib/utils";
+import { cn, getImageUrl } from "@/lib/utils";
 
 const formatSafeDate = (dateStr: any) => {
   if (!dateStr) return "N/A";
@@ -1131,58 +1131,28 @@ export function SchedulesPage() {
 
   const handleExport = async () => {
     try {
-      const response = await scheduleService.getAll(1, { 
-        export: 'true',
-        journey_date: journeyDate,
-        status: status === 'all' ? '' : status,
-        today_trips: todayOnly ? 'true' : ''
+      const exportData: any[] = schedules || [];
+      if (!exportData.length) { toast({ title: "No data to export", variant: "destructive" }); return; }
+      const jsPDF = (await import("jspdf")).default;
+      const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+      const pageW = pdf.internal.pageSize.getWidth(), pageH = pdf.internal.pageSize.getHeight();
+      const cols = ["Bus / Route", "Journey Date", "Departure", "Arrival", "Fare", "Status"];
+      const colW = [48, 34, 30, 30, 24, 34];
+      let y = 10, rowH = 6;
+      const drawH = () => { pdf.setFillColor(37, 99, 235); pdf.rect(0, y, pageW, rowH + 2, "F"); pdf.setTextColor(255, 255, 255); pdf.setFont("helvetica", "bold"); pdf.setFontSize(7); let hx = 4; cols.forEach((c, i) => { pdf.text(c, hx + 1, y + 5); hx += colW[i]; }); y += rowH + 3; };
+      drawH(); pdf.setFont("helvetica", "normal"); pdf.setFontSize(6); pdf.setTextColor(30, 41, 59);
+      exportData.forEach((s: any, idx: number) => {
+        if (y > pageH - 15) { pdf.addPage(); y = 10; drawH(); }
+        if (idx % 2 === 0) { pdf.setFillColor(248, 250, 252); pdf.rect(0, y - 1, pageW, rowH + 1, "F"); }
+        const busRoute = s.bus ? (s.bus.bus_name || "") + " - " + (s.bus.bus_number || "") : (s.name || s.schedule_name || "--");
+        const routeName = s.route ? (s.route.from_city || "") + "→" + (s.route.to_city || "") : "";
+        const display = busRoute + (routeName ? " (" + routeName + ")" : "");
+        const vals = [display, s.journey_date || "--", s.departure_time || s.dep || "--", s.arrival_time || s.arr || "--", s.fare ? "₹" + Number(s.fare).toLocaleString("en-IN") : "--", s.status || ""];
+        let vx = 4; vals.forEach((v, i) => { const d = typeof v === "string" ? v : String(v ?? ""); pdf.text(d.length > 24 ? d.slice(0, 22) + ".." : d, vx + 1, y + 4); vx += colW[i]; });
+        y += rowH + 1;
       });
-      const rawData = response.data;
-      const exportData = Array.isArray(rawData) ? rawData : (rawData.data || []);
-      
-      if (!exportData || exportData.length === 0) {
-        toast({ title: "No data to export", variant: "destructive" });
-        return;
-      }
-
-      // Create CSV
-      const headers = ["Schedule ID", "Bus Name", "Bus Number", "Route", "Journey Date", "Departure Time", "Arrival Time", "Fare", "Status"];
-      const csvRows = [headers.join(",")];
-
-      exportData.forEach((s: any) => {
-        const row = [
-          s.id,
-          s.bus ? `"${s.bus.bus_name.replace(/"/g, '""')}"` : "N/A",
-          s.bus ? `"${s.bus.bus_number.replace(/"/g, '""')}"` : "N/A",
-          s.route ? `"${s.route.from_city} -> ${s.route.to_city}"` : "N/A",
-          s.journey_date,
-          s.departure_time,
-          s.arrival_time,
-          s.fare,
-          s.status
-        ];
-        csvRows.push(row.join(","));
-      });
-
-      const csvContent = csvRows.join("\n");
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.setAttribute("href", url);
-      link.setAttribute("download", `schedules_export_${new Date().toISOString().split('T')[0]}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      toast({ title: "Export successful", description: "Your file has been downloaded" });
-    } catch (error) {
-      console.error("Export error:", error);
-      toast({
-        title: "Export failed",
-        description: "Could not export schedules data",
-        variant: "destructive"
-      });
-    }
+      pdf.save(`schedules-export-${new Date().toISOString().slice(0, 10)}.pdf`);
+    } catch { toast({ title: "Export failed", variant: "destructive" }); }
   };
 
   const handleDelete = (id: number) => {
@@ -1534,12 +1504,13 @@ function SchedulesBusViewDialog({ busId, open, onOpenChange }: { busId: number |
                     Vehicle Photos
                   </h4>
                   <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-3">
-                    {bus.images.map((img: string, idx: number) => (
+                    {(Array.isArray(bus.images) ? bus.images : (typeof bus.images === 'string' ? JSON.parse(bus.images) : [])).map((img: string, idx: number) => (
                       <div key={idx} className="aspect-square rounded-lg overflow-hidden border border-gray-100">
                         <img 
-                          src={`${import.meta.env.VITE_STORAGE_URL || 'http://localhost:8000/storage'}/${img}`} 
+                          src={getImageUrl(img, bus.id)} 
                           alt="Bus" 
                           className="w-full h-full object-cover hover:scale-110 transition-transform duration-300" 
+                          onError={(e) => { e.currentTarget.src = "/bus-1.png"; }}
                         />
                       </div>
                     ))}

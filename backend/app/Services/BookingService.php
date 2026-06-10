@@ -34,9 +34,9 @@ class BookingService
             // and these seat numbers.
 
             // 2. Generate booking number
-            $data['booking_number'] = 'BUS-' . strtoupper(Str::random(8));
-            $data['payment_status'] = 'pending';
-            $data['booking_status'] = 'pending';
+            $data['booking_number'] = $data['booking_number'] ?? 'BUS-' . strtoupper(Str::random(8));
+            $data['payment_status'] = $data['payment_status'] ?? 'pending';
+            $data['booking_status'] = $data['booking_status'] ?? 'pending';
             $data['passenger_count'] = count($data['passengers']);
 
             // 3. Create booking with passengers
@@ -60,6 +60,11 @@ class BookingService
     public function lockSeats(int $scheduleId, array $seatNumbers, string $sessionId): bool
     {
         return $this->seatLockRepository->lockSeats($scheduleId, $seatNumbers, $sessionId);
+    }
+
+    public function getBookingsByPhone(string $phone): array
+    {
+        return $this->bookingRepository->findByPhone($phone);
     }
 
     public function cancelBooking(string $bookingNumber): bool

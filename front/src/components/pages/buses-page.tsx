@@ -72,11 +72,13 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { cn } from "@/lib/utils";
+import { cn, getImageUrl } from "@/lib/utils";
 import { useNavStore } from "@/lib/nav-store";
 import { useBuses, useCreateBus, useUpdateBus, useDeleteBus, useBusStats } from "@/hooks/use-buses";
 import { busService } from "@/services/bus.service";
 import { toast } from "@/hooks/use-toast";
+import { SeatLayoutGeneratorService } from "@/services/seat-layout-generator.service";
+import { motion, AnimatePresence } from "framer-motion";
 
 
 
@@ -339,12 +341,24 @@ function BusViewDialog({ bus, open, onOpenChange }: { bus: any, open: boolean, o
                   Vehicle Photos
                 </h4>
                 <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-3">
-                  {bus.images.map((img: string, idx: number) => (
+                  {(Array.isArray(bus.images) ? bus.images : (typeof bus.images === 'string' ? JSON.parse(bus.images) : [])).map((img: string, idx: number) => (
                     <div key={idx} className="aspect-square rounded-lg overflow-hidden border border-gray-100">
                       <img 
-                        src={`${import.meta.env.VITE_STORAGE_URL || 'http://localhost:8000/storage'}/${img}`} 
+                        src={getImageUrl(img, bus.id)} 
                         alt="Bus" 
                         className="w-full h-full object-cover hover:scale-110 transition-transform duration-300" 
+                        onError={(e) => {
+                          const target = e.currentTarget;
+                          if (target.dataset?.fallbackTried) { target.src = "/bus-1.png"; return; }
+                          target.dataset.fallbackTried = "1";
+                          const apiUrl = import.meta.env.VITE_API_BASE_URL;
+                          if (apiUrl && !img.startsWith('http')) {
+                            const storageUrl = apiUrl.replace(/\/api\/?$/, '/storage');
+                            target.src = `${storageUrl}/${img.startsWith('/') ? img.substring(1) : img}`;
+                            return;
+                          }
+                          target.src = "/bus-1.png";
+                        }}
                       />
                     </div>
                   ))}
@@ -470,11 +484,103 @@ function AddBusForm({ onCancel, editData }: { onCancel: () => void, editData?: a
   const [busStatus, setBusStatus] = useState<string>(editData?.status || "");
   const [operator, setOperator] = useState<string>(editData?.operator || "Bhinder Bus Service");
 
+  // Layout parameters states
+  const [layoutType, setLayoutType] = useState<string>(editData?.layout_type || "2+3 Sleeper");
+  const [totalSeats, setTotalSeats] = useState<number>(editData?.total_seats ? Number(editData.total_seats) : 52);
+  const [lastRowSeats, setLastRowSeats] = useState<number>(editData?.last_row_seats ? Number(editData.last_row_seats) : 6);
+  const [leftSeatsPerRow, setLeftSeatsPerRow] = useState<number>(editData?.left_seats_per_row ? Number(editData.left_seats_per_row) : 2);
+  const [rightSeatsPerRow, setRightSeatsPerRow] = useState<number>(editData?.right_seats_per_row ? Number(editData.right_seats_per_row) : 3);
+  
+  // Preview modal states
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [isFullScreen, setIsFullScreen] = useState(false);
+  
+  // Validation errors
+  const [layoutErrors, setLayoutErrors] = useState<{
+    totalSeats?: string;
+    lastRowSeats?: string;
+    leftSeatsPerRow?: string;
+    rightSeatsPerRow?: string;
+  }>({});
+
+  const validateLayout = (): boolean => {
+    const errors: typeof layoutErrors = {};
+    let isValid = true;
+
+    if (!totalSeats || totalSeats <= 0) {
+      errors.totalSeats = "Total seats must be greater than 0.";
+      isValid = false;
+    }
+    if (!lastRowSeats || lastRowSeats <= 0) {
+      errors.lastRowSeats = "Last row seats must be greater than 0.";
+      isValid = false;
+    }
+    if (totalSeats && lastRowSeats && totalSeats < lastRowSeats) {
+      errors.totalSeats = "Total seats cannot be less than last row seats.";
+      isValid = false;
+    }
+
+    if (layoutType === "Custom Layout") {
+      if (!leftSeatsPerRow || leftSeatsPerRow <= 0) {
+        errors.leftSeatsPerRow = "Left seats per row must be greater than 0.";
+        isValid = false;
+      }
+      if (!rightSeatsPerRow || rightSeatsPerRow <= 0) {
+        errors.rightSeatsPerRow = "Right seats per row must be greater than 0.";
+        isValid = false;
+      }
+    }
+
+    setLayoutErrors(errors);
+    
+    if (!isValid) {
+      toast({
+        title: "Validation Error",
+        description: Object.values(errors).find(e => e) || "Please check layout fields.",
+        variant: "destructive",
+      });
+    }
+    
+    return isValid;
+  };
+
+  const handleViewLayout = () => {
+    if (validateLayout()) {
+      setIsPreviewOpen(true);
+    }
+  };
+
   // Image state
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const [previews, setPreviews] = useState<string[]>(
-    editData?.images?.map((img: string) => `${import.meta.env.VITE_STORAGE_URL || 'http://localhost:8000/storage'}/${img}`) || []
-  );
+  const selectedFilesRef = useRef<File[]>([]);
+  const [previews, setPreviews] = useState<string[]>([]);
+  const [keepImagePaths, setKeepImagePaths] = useState<string[]>([]);
+  
+  // Sync previews when editData changes (editing different bus)
+  useEffect(() => {
+    if (!editData?.images) {
+      setPreviews([]);
+      setKeepImagePaths([]);
+      selectedFilesRef.current = [];
+      return;
+    }
+    const imgs = typeof editData.images === 'string' ? JSON.parse(editData.images) : editData.images;
+    const imgArr = Array.isArray(imgs) ? imgs : [imgs];
+    const urls = imgArr.map((img: string) => getImageUrl(img));
+    // Extract relative paths from full URLs for the backend
+    const rawPaths = imgArr.map((img: string) => {
+      if (img.startsWith('http://') || img.startsWith('https://')) {
+        try {
+          const u = new URL(img);
+          const match = u.pathname.match(/\/storage\/(.+)/);
+          if (match) return match[1];
+        } catch {}
+      }
+      return img;
+    });
+    setPreviews(urls);
+    setKeepImagePaths(rawPaths);
+    selectedFilesRef.current = [];
+  }, [editData?.id, editData?.images]);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { mutate: createBus, isPending: isCreating } = useCreateBus();
@@ -496,8 +602,7 @@ function AddBusForm({ onCancel, editData }: { onCancel: () => void, editData?: a
       return;
     }
 
-    const newFiles = [...selectedFiles, ...files];
-    setSelectedFiles(newFiles);
+    selectedFilesRef.current = [...selectedFilesRef.current, ...files];
 
     // Create previews
     const newPreviews = files.map(file => URL.createObjectURL(file));
@@ -505,12 +610,16 @@ function AddBusForm({ onCancel, editData }: { onCancel: () => void, editData?: a
   };
 
   const removeImage = (index: number) => {
-    // If it's a new file
-    if (index >= (editData?.images?.length || 0)) {
-      const newFilesIndex = index - (editData?.images?.length || 0);
-      const newFiles = [...selectedFiles];
+    const existingCount = keepImagePaths.length;
+    if (index >= existingCount) {
+      const newFilesIndex = index - existingCount;
+      const newFiles = [...selectedFilesRef.current];
       newFiles.splice(newFilesIndex, 1);
-      setSelectedFiles(newFiles);
+      selectedFilesRef.current = newFiles;
+    } else {
+      const newKeep = [...keepImagePaths];
+      newKeep.splice(index, 1);
+      setKeepImagePaths(newKeep);
     }
 
     const newPreviews = [...previews];
@@ -525,6 +634,8 @@ function AddBusForm({ onCancel, editData }: { onCancel: () => void, editData?: a
     const formElement = document.getElementById('add-bus-form') as HTMLFormElement;
     if (!formElement) return;
 
+    if (!validateLayout()) return;
+
     const formData = new FormData(formElement);
     
     // Add select values manually
@@ -537,6 +648,18 @@ function AddBusForm({ onCancel, editData }: { onCancel: () => void, editData?: a
     formData.append('transmission_type', transmissionType);
     formData.append('status', busStatus);
     formData.append('operator', operator);
+
+    // Add layout values manually
+    formData.set('total_seats', totalSeats.toString());
+    formData.set('layout_type', layoutType);
+    formData.set('last_row_seats', lastRowSeats.toString());
+    if (layoutType === "Custom Layout") {
+      formData.set('left_seats_per_row', leftSeatsPerRow.toString());
+      formData.set('right_seats_per_row', rightSeatsPerRow.toString());
+    } else {
+      formData.delete('left_seats_per_row');
+      formData.delete('right_seats_per_row');
+    }
 
     // Add amenities as array
     formData.delete('amenities[]'); // Clear existing if any
@@ -552,8 +675,12 @@ function AddBusForm({ onCancel, editData }: { onCancel: () => void, editData?: a
     if (pucValidTill) formData.append('puc_valid_till', pucValidTill.toISOString());
 
     // Add images
-    selectedFiles.forEach((file) => {
+    selectedFilesRef.current.forEach((file) => {
       formData.append('images[]', file);
+    });
+    // Send which existing images to keep (for edit mode)
+    keepImagePaths.forEach((path) => {
+      formData.append('keep_images[]', path);
     });
 
     if (editData) {
@@ -657,9 +784,125 @@ function AddBusForm({ onCancel, editData }: { onCancel: () => void, editData?: a
               </SelectContent>
             </Select>
           </FormField>
-          <FormField label="Seating Capacity (Seats)" required helperText="e.g. 45">
-            <Input name="total_seats" defaultValue={editData?.total_seats} type="number" placeholder="Enter total seats" className="h-10 text-sm border-gray-200 focus:border-blue-300" required />
+          <FormField label="Layout Type" required>
+            <Select value={layoutType} onValueChange={(val) => {
+              setLayoutType(val);
+              // Dynamic adjustments/defaults for specific types if desired
+              if (val === "2+3 Sleeper") {
+                setLastRowSeats(6);
+              } else if (val === "2+2 Seater") {
+                setLastRowSeats(6);
+              } else if (val === "2+1 Luxury") {
+                setLastRowSeats(5);
+              } else if (val === "1+2 Sleeper") {
+                setLastRowSeats(5);
+              }
+            }}>
+              <SelectTrigger className="h-10 text-sm border-gray-200">
+                <SelectValue placeholder="Select layout type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="2+3 Sleeper">🚍 2+3 Sleeper</SelectItem>
+                <SelectItem value="2+2 Seater">🚌 2+2 Seater</SelectItem>
+                <SelectItem value="2+1 Luxury">✨ 2+1 Luxury</SelectItem>
+                <SelectItem value="1+2 Sleeper">🛏️ 1+2 Sleeper</SelectItem>
+                <SelectItem value="Custom Layout">⚙️ Custom Layout</SelectItem>
+              </SelectContent>
+            </Select>
           </FormField>
+          <FormField label="Total Seats" required helperText="e.g. 52">
+            <Input 
+              name="total_seats" 
+              value={totalSeats} 
+              type="number" 
+              onChange={(e) => {
+                const val = Number(e.target.value);
+                setTotalSeats(val);
+                if (val > 0) {
+                  setLayoutErrors(prev => ({ ...prev, totalSeats: undefined }));
+                }
+              }} 
+              placeholder="Enter total seats" 
+              className={cn("h-10 text-sm border-gray-200 focus:border-blue-300", layoutErrors.totalSeats && "border-red-500")} 
+              required 
+            />
+            {layoutErrors.totalSeats && (
+              <p className="text-xs text-red-500 font-medium mt-1">{layoutErrors.totalSeats}</p>
+            )}
+          </FormField>
+          <FormField label="Last Row Seats" required helperText="e.g. 6">
+            <Input 
+              name="last_row_seats" 
+              value={lastRowSeats} 
+              type="number" 
+              onChange={(e) => {
+                const val = Number(e.target.value);
+                setLastRowSeats(val);
+                if (val > 0) {
+                  setLayoutErrors(prev => ({ ...prev, lastRowSeats: undefined }));
+                }
+              }} 
+              placeholder="Enter last row seats" 
+              className={cn("h-10 text-sm border-gray-200 focus:border-blue-300", layoutErrors.lastRowSeats && "border-red-500")} 
+              required 
+            />
+            {layoutErrors.lastRowSeats && (
+              <p className="text-xs text-red-500 font-medium mt-1">{layoutErrors.lastRowSeats}</p>
+            )}
+          </FormField>
+          {layoutType === "Custom Layout" && (
+            <>
+              <FormField label="Left Seats Per Row" required helperText="e.g. 2">
+                <Input 
+                  name="left_seats_per_row" 
+                  value={leftSeatsPerRow} 
+                  type="number" 
+                  onChange={(e) => {
+                    const val = Number(e.target.value);
+                    setLeftSeatsPerRow(val);
+                    if (val > 0) {
+                      setLayoutErrors(prev => ({ ...prev, leftSeatsPerRow: undefined }));
+                    }
+                  }} 
+                  placeholder="Enter left seats per row" 
+                  className={cn("h-10 text-sm border-gray-200 focus:border-blue-300", layoutErrors.leftSeatsPerRow && "border-red-500")} 
+                  required 
+                />
+                {layoutErrors.leftSeatsPerRow && (
+                  <p className="text-xs text-red-500 font-medium mt-1">{layoutErrors.leftSeatsPerRow}</p>
+                )}
+              </FormField>
+              <FormField label="Right Seats Per Row" required helperText="e.g. 3">
+                <Input 
+                  name="right_seats_per_row" 
+                  value={rightSeatsPerRow} 
+                  type="number" 
+                  onChange={(e) => {
+                    const val = Number(e.target.value);
+                    setRightSeatsPerRow(val);
+                    if (val > 0) {
+                      setLayoutErrors(prev => ({ ...prev, rightSeatsPerRow: undefined }));
+                    }
+                  }} 
+                  placeholder="Enter right seats per row" 
+                  className={cn("h-10 text-sm border-gray-200 focus:border-blue-300", layoutErrors.rightSeatsPerRow && "border-red-500")} 
+                  required 
+                />
+                {layoutErrors.rightSeatsPerRow && (
+                  <p className="text-xs text-red-500 font-medium mt-1">{layoutErrors.rightSeatsPerRow}</p>
+                )}
+              </FormField>
+            </>
+          )}
+          <div className="flex items-end pb-2">
+            <Button
+              type="button"
+              onClick={handleViewLayout}
+              className="h-10 w-full bg-slate-800 hover:bg-slate-900 text-white text-sm font-semibold rounded-md shadow-sm transition-all"
+            >
+              View Layout
+            </Button>
+          </div>
           <FormField label="Bus Category">
             <Select value={busCategory} onValueChange={setBusCategory}>
               <SelectTrigger className="h-10 text-sm border-gray-200">
@@ -954,6 +1197,171 @@ function AddBusForm({ onCancel, editData }: { onCancel: () => void, editData?: a
       </div>
       </div>
       </form>
+
+      {/* ── Dynamic Seat Layout Preview Modal (Glassmorphism) ── */}
+      <AnimatePresence>
+        {isPreviewOpen && (
+          <Dialog open={isPreviewOpen} onOpenChange={(open) => !open && setIsPreviewOpen(false)}>
+            <DialogContent className={cn(
+              "bg-white/80 backdrop-blur-xl border border-white/20 shadow-2xl p-0 overflow-hidden flex flex-col transition-all duration-300",
+              isFullScreen 
+                ? "max-w-4xl w-[95vw] h-[90vh] rounded-2xl" 
+                : "max-w-md w-[95vw] max-h-[85vh] rounded-2xl"
+            )}>
+              {/* Header */}
+              <div className="p-4 border-b border-gray-100 bg-white/40 flex items-center justify-between">
+                <div>
+                  <DialogTitle className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                    <Bus className="w-5 h-5 text-blue-600" />
+                    Bus Layout Preview
+                  </DialogTitle>
+                  <DialogDescription className="text-xs text-gray-500">
+                    Live seat configuration preview
+                  </DialogDescription>
+                </div>
+                <div className="flex items-center gap-2 mr-6">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsFullScreen(!isFullScreen)}
+                    className="h-8 text-xs font-semibold text-gray-600 border-gray-200"
+                  >
+                    {isFullScreen ? "Exit Full Screen" : "Full Screen Preview"}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Scrollable Layout Container */}
+              <div className="flex-1 overflow-y-auto p-6 flex justify-center items-start bg-slate-50/30">
+                <motion.div
+                  key={`${layoutType}-${totalSeats}-${lastRowSeats}-${leftSeatsPerRow}-${rightSeatsPerRow}-${isFullScreen}`}
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ duration: 0.25 }}
+                  className={cn(
+                    "bg-white border border-slate-150 p-6 rounded-2xl flex flex-col justify-between shadow-lg transition-all",
+                    isFullScreen ? "w-full max-w-xl" : "w-full max-w-[320px]"
+                  )}
+                >
+                  {/* Driver & Conductor Card */}
+                  <div className="grid grid-cols-2 gap-4 mb-4 select-none">
+                    <div className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border border-slate-100 bg-slate-50/50 shadow-xs">
+                      <User className="w-4 h-4 text-slate-500" />
+                      <span className="text-[10px] font-black text-slate-600 tracking-wider uppercase">CONDUCTOR</span>
+                    </div>
+                    <div className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border border-slate-100 bg-slate-50/50 shadow-xs">
+                      <User className="w-4 h-4 text-slate-500" />
+                      <span className="text-[10px] font-black text-slate-600 tracking-wider uppercase">DRIVER</span>
+                    </div>
+                  </div>
+
+                  {/* Cabin Partition Line */}
+                  <div className="h-[2px] bg-slate-800 rounded-full mb-6 opacity-90" />
+
+                  {/* Seat Grid Layout */}
+                  <div className="space-y-2">
+                    {(() => {
+                      const mockSeats = SeatLayoutGeneratorService.generateMockSeats(totalSeats);
+                      const rows = SeatLayoutGeneratorService.parseLayout(
+                        mockSeats,
+                        layoutType,
+                        lastRowSeats,
+                        leftSeatsPerRow,
+                        rightSeatsPerRow
+                      );
+
+                      const renderSeatButton = (seat: any) => {
+                        return (
+                          <motion.div
+                            key={seat.seat_number}
+                            whileHover={{ scale: 1.15 }}
+                            whileTap={{ scale: 0.95 }}
+                            className="w-8.5 h-8.5 rounded-lg text-[9.5px] font-black transition-all flex items-center justify-center border select-none cursor-pointer bg-emerald-500 border-emerald-600 text-white shadow-sm hover:shadow-emerald-300"
+                          >
+                            {seat.seat_number}
+                          </motion.div>
+                        );
+                      };
+
+                      return rows.map((rowObj) => {
+                        if (rowObj.isLastRow) {
+                          const lastRowSeatsList = rowObj.lastRowSeats || [];
+                          return (
+                            <div key={rowObj.rowLabel} className="flex flex-col gap-2 mt-3 pt-2 border-t border-slate-100/60">
+                              <div className="flex items-center gap-3">
+                                <span className="w-6 text-[11px] font-black text-slate-400 text-left shrink-0">
+                                  {rowObj.rowLabel}
+                                </span>
+                                <div className="flex gap-1 flex-1 justify-between">
+                                  {lastRowSeatsList.map((seat) => renderSeatButton(seat))}
+                                </div>
+                              </div>
+                              <div className="text-center text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">
+                                {lastRowSeatsList.length} Seater (Last Row)
+                              </div>
+                            </div>
+                          );
+                        }
+
+                        const leftSeats = rowObj.leftSeats || [];
+                        const rightSeats = rowObj.rightSeats || [];
+
+                        return (
+                          <div key={rowObj.rowLabel} className="flex items-center gap-3">
+                            <span className="w-6 text-[11px] font-black text-slate-400 text-left shrink-0">
+                              {rowObj.rowLabel}
+                            </span>
+                            
+                            {/* Left Side */}
+                            <div className="flex gap-1.5">
+                              {leftSeats.map((seat) => renderSeatButton(seat))}
+                            </div>
+
+                            {/* Center Aisle */}
+                            <div className="flex-1 min-w-[16px]" />
+
+                            {/* Right Side */}
+                            <div className="flex gap-1.5">
+                              {rightSeats.map((seat) => renderSeatButton(seat))}
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
+
+                  {/* Front / Rear Labels */}
+                  <div className="mt-6 pt-4 border-t border-slate-200/60 flex flex-col items-center gap-1 text-[10px] text-slate-400 font-bold tracking-widest uppercase select-none">
+                    <div className="flex items-center gap-1">
+                      <span>FRONT</span>
+                      <span className="text-[11px]">↑</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span>REAR</span>
+                      <span className="text-[11px]">↓</span>
+                    </div>
+                  </div>
+                </motion.div>
+              </div>
+
+              {/* Footer */}
+              <div className="p-4 border-t border-gray-100 bg-white/40 flex justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsPreviewOpen(false)}
+                  className="h-9 text-sm font-semibold text-gray-600 border-gray-200"
+                >
+                  Close Preview
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -995,53 +1403,25 @@ export function BusesPage() {
 
   const handleExport = async () => {
     try {
-      const response = await busService.getAll({ export: 'true', search, status: status === 'all' ? '' : status });
-      const rawData = response.data;
-      const exportData = Array.isArray(rawData) ? rawData : (rawData.data || []);
-      
-      if (!exportData || exportData.length === 0) {
-        toast({ title: "No data to export", variant: "destructive" });
-        return;
-      }
-
-      // Create CSV
-      const headers = ["Bus Name", "Bus Number", "Type", "Capacity", "Category", "Manufacturer", "Model", "Operator", "Status"];
-      const csvRows = [headers.join(",")];
-      
-      exportData.forEach((bus: any) => {
-        const row = [
-          `"${(bus.bus_name || '').replace(/"/g, '""')}"`,
-          `"${(bus.bus_number || '').replace(/"/g, '""')}"`,
-          `"${(bus.bus_type || '').replace(/"/g, '""')}"`,
-          `"${bus.total_seats || 0}"`,
-          `"${(bus.bus_category || 'N/A').replace(/"/g, '""')}"`,
-          `"${(bus.manufacturer || 'N/A').replace(/"/g, '""')}"`,
-          `"${(bus.model || 'N/A').replace(/"/g, '""')}"`,
-          `"${(bus.operator || 'N/A').replace(/"/g, '""')}"`,
-          `"${(bus.status || '').replace(/"/g, '""')}"`
-        ];
-        csvRows.push(row.join(","));
+      const exportData: any[] = buses || [];
+      if (!exportData.length) { toast({ title: "No data to export", variant: "destructive" }); return; }
+      const jsPDF = (await import("jspdf")).default;
+      const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+      const pageW = pdf.internal.pageSize.getWidth(), pageH = pdf.internal.pageSize.getHeight();
+      const cols = ["Bus Name", "Bus Number", "Type", "Capacity", "Operator", "Status"];
+      const colW = [44, 34, 34, 24, 42, 32];
+      let y = 10, rowH = 6;
+      const drawH = () => { pdf.setFillColor(37, 99, 235); pdf.rect(0, y, pageW, rowH + 2, "F"); pdf.setTextColor(255, 255, 255); pdf.setFont("helvetica", "bold"); pdf.setFontSize(7); let hx = 4; cols.forEach((c, i) => { pdf.text(c, hx + 1, y + 5); hx += colW[i]; }); y += rowH + 3; };
+      drawH(); pdf.setFont("helvetica", "normal"); pdf.setFontSize(6); pdf.setTextColor(30, 41, 59);
+      exportData.forEach((b: any, idx: number) => {
+        if (y > pageH - 15) { pdf.addPage(); y = 10; drawH(); }
+        if (idx % 2 === 0) { pdf.setFillColor(248, 250, 252); pdf.rect(0, y - 1, pageW, rowH + 1, "F"); }
+        const vals = [b.bus_name || "", b.bus_number || "", b.bus_type || "", String(b.total_seats || 0), b.operator || "--", b.status || ""];
+        let vx = 4; vals.forEach((v, i) => { const d = typeof v === "string" ? v : String(v ?? ""); pdf.text(d.length > 20 ? d.slice(0, 18) + ".." : d, vx + 1, y + 4); vx += colW[i]; });
+        y += rowH + 1;
       });
-
-      const csvContent = csvRows.join("\n");
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.setAttribute("href", url);
-      link.setAttribute("download", `buses_export_${new Date().toISOString().split('T')[0]}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      
-      toast({ title: "Export successful", description: "Your file has been downloaded" });
-    } catch (error: any) {
-      console.error("Export error:", error);
-      toast({ 
-        title: "Export failed", 
-        description: error.response?.data?.message || error.message || "An unknown error occurred",
-        variant: "destructive" 
-      });
-    }
+      pdf.save(`buses-export-${new Date().toISOString().slice(0, 10)}.pdf`);
+    } catch { /* ignore */ }
   };
 
   const handleReset = () => {
@@ -1211,15 +1591,40 @@ export function BusesPage() {
                       <TableRow key={bus.id} className="group hover:bg-gray-50/50 border-gray-100 transition-colors">
                         <TableCell className="py-4">
                           <div className="w-12 h-12 rounded-lg bg-gray-100 overflow-hidden border border-gray-200 flex items-center justify-center">
-                            {bus.images && bus.images.length > 0 ? (
-                              <img
-                                src={`${import.meta.env.VITE_STORAGE_URL || 'http://localhost:8000/storage'}/${bus.images[0]}`}
-                                alt="Bus"
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <Bus className="w-6 h-6 text-gray-300" />
-                            )}
+                            <img
+                              src={getImageUrl(bus.images, bus.id)}
+                              alt="Bus"
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                const target = e.currentTarget;
+                                if (target.dataset?.fallbackTried) {
+                                  target.src = "/bus-1.png";
+                                  return;
+                                }
+                                target.dataset.fallbackTried = "1";
+                                // Extract relative path from whatever URL format and try API-derived storage URL
+                                const apiUrl = import.meta.env.VITE_API_BASE_URL;
+                                if (apiUrl) {
+                                  let relPath = "";
+                                  if (Array.isArray(bus.images) && bus.images.length > 0) {
+                                    const first = bus.images[0];
+                                    if (typeof first === 'string') {
+                                      if (first.startsWith('http')) {
+                                        try { relPath = new URL(first).pathname.replace(/^\/storage\//, ''); } catch {}
+                                      } else {
+                                        relPath = first;
+                                      }
+                                    }
+                                  }
+                                  if (relPath) {
+                                    const storageUrl = apiUrl.replace(/\/api\/?$/, '/storage');
+                                    target.src = `${storageUrl}/${relPath}`;
+                                    return;
+                                  }
+                                }
+                                target.src = "/bus-1.png";
+                              }}
+                            />
                           </div>
                         </TableCell>
                         <TableCell className="py-4">

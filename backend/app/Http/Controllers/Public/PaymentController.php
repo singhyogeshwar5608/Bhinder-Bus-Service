@@ -7,9 +7,20 @@ use App\Models\Booking;
 use App\Models\Payment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 
 class PaymentController extends Controller
 {
+    private function razorpayHeaders(): array
+    {
+        $key = config('services.razorpay.key_id');
+        $secret = config('services.razorpay.key_secret');
+        return [
+            'Authorization' => 'Basic ' . base64_encode("$key:$secret"),
+            'Content-Type' => 'application/json',
+        ];
+    }
+
     public function initiate(Request $request)
     {
         $request->validate([
@@ -17,16 +28,45 @@ class PaymentController extends Controller
         ]);
 
         $booking = Booking::findOrFail($request->booking_id);
+        $amountPaise = intval(round($booking->total_amount * 100));
 
-        // Here you would normally call Razorpay API to create an order
-        // $order = $razorpay->order->create([...]);
+        try {
+            $response = Http::withHeaders($this->razorpayHeaders())
+                ->post('https://api.razorpay.com/v1/orders', [
+                    'amount' => $amountPaise,
+                    'currency' => 'INR',
+                    'receipt' => 'booking_' . $booking->id . '_' . time(),
+                    'notes' => [
+                        'booking_id' => $booking->id,
+                        'booking_number' => $booking->booking_number,
+                    ],
+                ]);
 
-        return response()->json([
-            'booking' => $booking,
-            'razorpay_order_id' => 'order_' . bin2hex(random_bytes(8)),
-            'amount' => $booking->total_amount * 100, // in paise
-            'currency' => 'INR',
-        ]);
+            if (!$response->successful()) {
+                return response()->json([
+                    'message' => 'Failed to create Razorpay order',
+                    'error' => $response->body(),
+                ], 500);
+            }
+
+            $order = $response->json();
+
+            return response()->json([
+                'booking_id' => $booking->id,
+                'razorpay_order_id' => $order['id'],
+                'amount' => $amountPaise,
+                'currency' => 'INR',
+                'key_id' => config('services.razorpay.key_id'),
+                'customer_name' => $booking->customer_name,
+                'customer_email' => $booking->customer_email,
+                'customer_phone' => $booking->customer_phone,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Razorpay order creation failed',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
     }
 
     public function verify(Request $request)
@@ -38,13 +78,21 @@ class PaymentController extends Controller
             'razorpay_signature' => 'required',
         ]);
 
-        // Normally verify signature here
-        // $attributes = [...];
-        // $api->utility->verifyPaymentSignature($attributes);
+        // Verify signature
+        $secret = config('services.razorpay.key_secret');
+        $expectedSignature = hash_hmac(
+            'sha256',
+            $request->razorpay_order_id . '|' . $request->razorpay_payment_id,
+            $secret
+        );
+
+        if ($expectedSignature !== $request->razorpay_signature) {
+            return response()->json(['message' => 'Invalid payment signature'], 400);
+        }
 
         return DB::transaction(function () use ($request) {
             $booking = Booking::findOrFail($request->booking_id);
-            
+
             $booking->update([
                 'payment_status' => 'paid',
                 'booking_status' => 'confirmed',
@@ -59,7 +107,10 @@ class PaymentController extends Controller
                 'response' => $request->all(),
             ]);
 
-            return response()->json(['message' => 'Payment verified and booking confirmed']);
+            return response()->json([
+                'message' => 'Payment verified and booking confirmed',
+                'booking' => $booking->load('schedule.bus', 'passengers', 'payment'),
+            ]);
         });
     }
 }

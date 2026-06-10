@@ -15,6 +15,10 @@ class BusResource extends JsonResource
             'bus_number' => $this->bus_number,
             'bus_type' => $this->bus_type,
             'total_seats' => $this->total_seats,
+            'layout_type' => $this->layout_type,
+            'last_row_seats' => $this->last_row_seats,
+            'left_seats_per_row' => $this->left_seats_per_row,
+            'right_seats_per_row' => $this->right_seats_per_row,
             'bus_category' => $this->bus_category,
             'amenities' => $this->amenities,
             'chassis_number' => $this->chassis_number,
@@ -35,7 +39,9 @@ class BusResource extends JsonResource
             'fitness_valid_till' => $this->fitness_valid_till,
             'puc_number' => $this->puc_number,
             'puc_valid_till' => $this->puc_valid_till,
-            'images' => $this->images,
+            'images' => $this->images ? collect($this->images)->map(function ($img) {
+                return url('storage/' . $img);
+            })->toArray() : null,
             'driver' => new DriverResource($this->whenLoaded('driver')),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,

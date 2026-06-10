@@ -27,13 +27,20 @@ Route::get('/top-buses', [SearchController::class, 'getTopBuses']);
 Route::get('/public-buses', [SearchController::class, 'getPublicBuses']);
 Route::get('/seats/{schedule_id}', [SearchController::class, 'getSeats']);
 Route::get('/schedules/{id}', [SearchController::class, 'getSchedule']);
+Route::get('/schedules/{id}/seats', [PublicBookingController::class, 'getSeatsBySchedule']);
+Route::post('/seats/lock', [PublicBookingController::class, 'lockSeats']);
+Route::post('/seats/unlock', [PublicBookingController::class, 'unlockSeats']);
+Route::get('/seats/status', [PublicBookingController::class, 'getSeatsStatus']);
 
 Route::prefix('bookings')->group(function () {
     Route::post('/create', [PublicBookingController::class, 'create']);
     Route::post('/lock-seats', [PublicBookingController::class, 'lockSeats']);
+    Route::get('/track/{phone}', [PublicBookingController::class, 'trackByPhone']);
+    Route::post('/{booking_number}/email-ticket', [PublicBookingController::class, 'emailTicket']);
     Route::get('/{booking_number}', [PublicBookingController::class, 'getBooking']);
     Route::post('/cancel', [PublicBookingController::class, 'cancel']);
 });
+Route::post('/bookings/create', [PublicBookingController::class, 'create']);
 
 Route::prefix('payments')->group(function () {
     Route::post('/initiate', [PaymentController::class, 'initiate']);
@@ -58,6 +65,7 @@ Route::prefix('admin')->group(function () {
         Route::apiResource('routes', RouteController::class);
         Route::get('/schedules/stats', [ScheduleController::class, 'getStats']);
         Route::apiResource('schedules', ScheduleController::class);
+        Route::get('/bookings/stats', [AdminBookingController::class, 'stats']);
         Route::apiResource('bookings', AdminBookingController::class);
         Route::apiResource('coupons', CouponController::class);
         Route::get('/travelers', [\App\Http\Controllers\Admin\TravelerController::class, 'index']);

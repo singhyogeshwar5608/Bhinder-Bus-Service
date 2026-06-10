@@ -14,14 +14,17 @@ export const useSearchBuses = (params: { from_city: string; to_city: string; jou
   });
 };
 
-export const useScheduleSeats = (scheduleId: number | null) => {
+export const useScheduleSeats = (scheduleId: number | null, sessionId?: string) => {
   return useQuery({
-    queryKey: ['schedule-seats', scheduleId],
+    queryKey: ['schedule-seats', scheduleId, sessionId],
     queryFn: async () => {
-      const response = await axios.get(`${API_URL}/seats/${scheduleId}`);
+      const response = await axios.get(`${API_URL}/schedules/${scheduleId}/seats`, {
+        params: { session_id: sessionId }
+      });
       return response.data;
     },
     enabled: !!scheduleId,
+    refetchInterval: 10000, // Background poll every 10 seconds
   });
 };
 

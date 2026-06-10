@@ -13,7 +13,6 @@ import {
   Tag,
   BarChart3,
   Settings,
-  Headphones,
   ChevronLeft,
   ChevronRight,
   X,
@@ -40,7 +39,7 @@ const iconMap: Record<string, React.ElementType> = {
   Settings,
 };
 
-const navItems: { label: string; icon: string; page: PageKey }[] = [
+const navItems: { label: string; icon: string; page: PageKey; hidden?: boolean }[] = [
   { label: "Dashboard", icon: "LayoutDashboard", page: "dashboard" },
   { label: "Bookings", icon: "CalendarCheck", page: "bookings" },
   { label: "Buses", icon: "Bus", page: "buses" },
@@ -48,10 +47,10 @@ const navItems: { label: string; icon: string; page: PageKey }[] = [
   { label: "Routes", icon: "Route", page: "routes" },
   { label: "Schedules", icon: "Clock", page: "schedules" },
   { label: "Travelers", icon: "UserCheck", page: "travelers" },
-  { label: "Payments", icon: "CreditCard", page: "payments" },
-  { label: "Coupons", icon: "Tag", page: "coupons" },
-  { label: "Reports", icon: "BarChart3", page: "reports" },
-  { label: "Settings", icon: "Settings", page: "settings" },
+  { label: "Payments", icon: "CreditCard", page: "payments", hidden: true },
+  { label: "Coupons", icon: "Tag", page: "coupons", hidden: true },
+  { label: "Reports", icon: "BarChart3", page: "reports", hidden: true },
+  { label: "Settings", icon: "Settings", page: "settings", hidden: true },
 ];
 
 interface SidebarProps {
@@ -143,7 +142,7 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto py-4 px-3 scrollbar-thin">
           <ul className="space-y-1">
-            {navItems.map((item) => {
+            {navItems.filter(item => !item.hidden).map((item) => {
               const IconComponent = iconMap[item.icon];
               const isActive = activePage === item.page;
               return (
@@ -167,23 +166,6 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
             })}
           </ul>
         </nav>
-
-        {/* Support Card */}
-        {!collapsed && (
-          <div className="px-3 mb-3">
-            <div className="rounded-xl bg-gradient-to-br from-blue-600/30 to-blue-800/30 border border-blue-500/20 p-4">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-8 h-8 rounded-full bg-blue-500/30 flex items-center justify-center">
-                  <Headphones className="w-4 h-4 text-blue-300" />
-                </div>
-                <div>
-                  <p className="text-white text-sm font-semibold">Need Help?</p>
-                  <p className="text-blue-300 text-xs">Contact Support</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Logout Button */}
         <div className="px-3 mb-3">
@@ -210,7 +192,7 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
         {!collapsed && (
           <div className="px-5 pb-4">
             <p className="text-slate-500 text-xs text-center leading-tight">
-              © 2024 Bus Book CRM
+              © 2024 Bhinder Bus Service
               <br />
               All rights reserved.
             </p>

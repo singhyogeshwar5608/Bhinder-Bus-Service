@@ -30,6 +30,10 @@ class BusController extends Controller
             'bus_number' => 'required|string|unique:buses',
             'bus_type' => 'required|string',
             'total_seats' => 'required|integer',
+            'layout_type' => 'required|string',
+            'last_row_seats' => 'required|integer',
+            'left_seats_per_row' => 'nullable|integer',
+            'right_seats_per_row' => 'nullable|integer',
             'bus_category' => 'nullable|string',
             'amenities' => 'nullable|array',
             'chassis_number' => 'nullable|string',
@@ -78,11 +82,20 @@ class BusController extends Controller
 
     public function update(Request $request, $id)
     {
+        $bus = $this->busService->getBusById($id);
+        if (!$bus) {
+            return response()->json(['message' => 'Bus not found'], 404);
+        }
+
         $validated = $request->validate([
             'bus_name' => 'sometimes|string',
             'bus_number' => 'sometimes|string|unique:buses,bus_number,' . $id,
             'bus_type' => 'sometimes|string',
             'total_seats' => 'sometimes|integer',
+            'layout_type' => 'sometimes|string',
+            'last_row_seats' => 'sometimes|integer',
+            'left_seats_per_row' => 'nullable|integer',
+            'right_seats_per_row' => 'nullable|integer',
             'bus_category' => 'nullable|string',
             'amenities' => 'nullable|array',
             'chassis_number' => 'nullable|string',
@@ -107,20 +120,25 @@ class BusController extends Controller
             'driver_id' => 'nullable|exists:drivers,id',
         ]);
 
-        if ($request->hasFile('images')) {
+        if ($request->has('keep_images') || $request->hasFile('images')) {
             $imagePaths = [];
-            foreach ($request->file('images') as $image) {
-                $path = $image->store('buses', 'public');
-                $imagePaths[] = $path;
+            if ($request->has('keep_images')) {
+                $imagePaths = $request->input('keep_images');
+                if (!is_array($imagePaths)) {
+                    $imagePaths = [$imagePaths];
+                }
+            }
+            if ($request->hasFile('images')) {
+                foreach ($request->file('images') as $image) {
+                    $path = $image->store('buses', 'public');
+                    $imagePaths[] = $path;
+                }
             }
             $validated['images'] = $imagePaths;
         }
 
-        $bus = $this->busService->updateBus($id, $validated);
-        if (!$bus) {
-            return response()->json(['message' => 'Bus not found'], 404);
-        }
-        return new BusResource($bus);
+        $updated = $this->busService->updateBus($id, $validated);
+        return new BusResource($updated->fresh());
     }
 
     public function destroy($id)
