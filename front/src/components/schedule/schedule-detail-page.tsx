@@ -252,7 +252,7 @@ export function ScheduleDetailPage() {
             <img
               src={getImageUrl(busImage, schedule.bus_id || schedule.bus_details?.id)}
               alt={schedule.name}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-contain"
               onError={(e) => { e.currentTarget.src = "/bus-1.png"; }}
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />

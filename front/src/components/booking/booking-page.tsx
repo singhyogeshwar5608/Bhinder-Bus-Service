@@ -137,6 +137,63 @@ export function BookingPage() {
   const [sendingEmail, setSendingEmail] = useState(false);
   const ticketRef = useRef<HTMLDivElement>(null);
 
+  // Recover from payment if handler never fired (page refresh, stuck modal, etc.)
+  useEffect(() => {
+    const pendingRaw = localStorage.getItem('pending_booking');
+    if (!pendingRaw) return;
+    localStorage.removeItem('pending_booking');
+
+    let pending: any;
+    try { pending = JSON.parse(pendingRaw); } catch { return; }
+    if (!pending?.bookingNumber) return;
+
+    const age = Date.now() - (pending.timestamp || 0);
+    if (age > 30 * 60 * 1000) return; // Older than 30 mins, skip
+
+    console.log("[RECOVERY] Found pending booking, checking status...", pending);
+    api.get(`/bookings/${pending.bookingNumber}`)
+      .then((res: any) => {
+        const booking = res.data?.booking || res.data;
+        if (booking?.payment_status === 'paid' || booking?.payment_status === 'success') {
+          console.log("[RECOVERY] Booking already paid! Showing confirmation.");
+          setConfirmData({
+            bookingNumber: pending.bookingNumber,
+            passengers: [],
+            totalAmount: booking.total_amount,
+            boardingLocation: '',
+            boardingTime: '',
+            destination: booking?.schedule?.to || '',
+            arrivalTime: '',
+            scheduleName: booking?.schedule?.name || '',
+            scheduleDate: booking?.schedule?.journey_date || '',
+            customerName: booking.customer_name,
+            customerPhone: booking.customer_phone,
+            customerEmail: booking.customer_email,
+            seatNumbers: booking.seat_numbers || [],
+            busName: booking?.schedule?.bus?.bus_name || '',
+            busNumber: booking?.schedule?.bus?.bus_number || '',
+            busType: booking?.schedule?.bus?.bus_type || '',
+          });
+          setIsConfirmOpen(true);
+          toast({ title: "✓ Payment Already Confirmed!", description: "Your booking was completed.", variant: "default" });
+        } else {
+          // Payment not made yet, check Razorpay order status
+          if (pending.razorpayOrderId) {
+            api.get(`/payments/order-status/${pending.razorpayOrderId}`)
+              .then((statusRes: any) => {
+                if (statusRes.data?.paid) {
+                  console.log("[RECOVERY] Payment detected via Razorpay! Confirming booking...");
+                  toast({ title: "Payment Found", description: "Completing your booking...", variant: "default" });
+                  window.location.reload();
+                }
+              })
+              .catch(() => {});
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   // Fetch seats for the selected bus, passing session_id to map 'selected' status
   const { data: seatDataResponse, isLoading: loadingSeats } = useScheduleSeats(expandedBus, sessionId);
   const seats = seatDataResponse?.seats || [];
@@ -262,6 +319,24 @@ export function BookingPage() {
 
   // Handle final booking submission
   const [processingPayment, setProcessingPayment] = useState(false);
+  const paymentInFlightRef = useRef(false);
+  const unmountedRef = useRef(false);
+
+  useEffect(() => {
+    return () => { unmountedRef.current = true; };
+  }, []);
+
+  // Warn user if they try to leave during payment
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (paymentInFlightRef.current) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, []);
 
   // Load Razorpay checkout script
   const loadRazorpayScript = (): Promise<boolean> => {
@@ -277,6 +352,7 @@ export function BookingPage() {
 
   const handleBookingSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log("[PAYMENT] handleBookingSubmit started");
     if (!customerName || !customerPhone || !customerEmail) {
       toast({ title: "Validation Error", description: "Please fill in all customer contact details.", variant: "destructive" });
       return;
@@ -290,8 +366,10 @@ export function BookingPage() {
     }));
 
     setProcessingPayment(true);
+    paymentInFlightRef.current = true;
     try {
       // 1. Create pending booking
+      console.log("[PAYMENT] Step 1: Creating booking...");
       const response = await createBookingMutation.mutateAsync({
         schedule_id: expandedBus!,
         customer_name: customerName,
@@ -306,16 +384,38 @@ export function BookingPage() {
       const bookingData = response?.data || response;
       const bookingId = bookingData.id;
       const bookingNumber = bookingData.booking_number;
+      console.log("[PAYMENT] Booking created", { bookingId, bookingNumber });
 
       // 2. Initiate Razorpay order
+      console.log("[PAYMENT] Step 2: Initiating Razorpay order...");
       const initRes = await api.post('/payments/initiate', { booking_id: bookingId });
       const initData = initRes.data;
+      console.log("[PAYMENT] Razorpay order initiated", { orderId: initData.razorpay_order_id });
+
+      // Store pending booking in localStorage for recovery if handler never fires
+      localStorage.setItem('pending_booking', JSON.stringify({
+        bookingId,
+        bookingNumber,
+        razorpayOrderId: initData.razorpay_order_id,
+        timestamp: Date.now(),
+      }));
 
       // 3. Load Razorpay and open checkout
+      console.log("[PAYMENT] Step 3: Loading Razorpay SDK...");
       const loaded = await loadRazorpayScript();
       if (!loaded) {
+        localStorage.removeItem('pending_booking');
         throw new Error("Failed to load Razorpay SDK");
       }
+      console.log("[PAYMENT] Razorpay SDK loaded");
+
+      // Build commonData upfront for use in handler
+      const schedule = selectedSchedule;
+      const bus = schedule?.bus_details;
+      const allStops = schedule?.stops || [];
+
+      // Open Razorpay checkout
+      let paymentCompleted = false;
 
       const options = {
         key: initData.key_id,
@@ -329,80 +429,183 @@ export function BookingPage() {
           email: customerEmail,
           contact: customerPhone,
         },
-        handler: async function (paymentResponse: any) {
-          // 4. Verify payment on backend
-          const verifyRes = await api.post('/payments/verify', {
+        theme: {
+          color: "#2563EB",
+        },
+        modal: {
+          ondismiss: function () {
+            console.log("[PAYMENT] Razorpay modal dismissed by user");
+            if (paymentCompleted) {
+              // Handler already fired, nothing to do
+              return;
+            }
+            paymentCompleted = true;
+
+            // Check if payment actually went through (handler might not have fired)
+            api.get(`/payments/order-status/${initData.razorpay_order_id}`)
+              .then((res: any) => {
+                if (res.data?.paid) {
+                  console.log("[PAYMENT] Payment detected via order status check! Recovering...");
+                  // Payment went through but handler didn't fire — verify now
+                  return api.get(`/bookings/${bookingNumber}`)
+                    .then((bookingRes: any) => {
+                      const booking = bookingRes.data;
+                      if (booking?.payment_status === 'paid') {
+                        // Already verified on backend, show confirmation
+                        const commonData = {
+                          bookingNumber: booking.booking_number,
+                          passengers: passengersList,
+                          totalAmount: totalFare,
+                          boardingLocation,
+                          boardingTime,
+                          destination: schedule?.to,
+                          arrivalTime: schedule?.arr,
+                          scheduleName: schedule?.name,
+                          scheduleDate: schedule?.date,
+                          customerName,
+                          customerPhone,
+                          customerEmail,
+                          seatNumbers: [...selectedSeats],
+                          busName: bus?.bus_name,
+                          busNumber: bus?.bus_number,
+                          busType: bus?.bus_type,
+                          operator: bus?.operator,
+                          routeFrom: schedule?.from,
+                          routeTo: schedule?.to,
+                          journeyDate: schedule?.date,
+                          depTime: schedule?.dep,
+                          arrTimeFull: schedule?.arr,
+                          fare: schedule?.fare,
+                          amenities: schedule?.amenities,
+                          stops: allStops,
+                          boardingPoint: boardingPoint || schedule?.from,
+                          droppingPoint: droppingPoint || schedule?.to,
+                        };
+                        localStorage.removeItem('pending_booking');
+                        setConfirmData(commonData);
+                        setIsConfirmOpen(true);
+                        toast({ title: "✓ Booking Confirmed!", description: "Your payment was successful.", variant: "default" });
+                        generateAndEmailPdf(commonData);
+                      } else {
+                        toast({ title: "Payment Detected", description: "We received your payment. Confirming booking...", variant: "default" });
+                      }
+                    });
+                } else {
+                  toast({ title: "Payment Cancelled", description: "Your booking is pending. You can retry from the booking page.", variant: "destructive" });
+                }
+              })
+              .catch(() => {
+                toast({ title: "Payment Cancelled", description: "Your booking is pending. You can retry from the booking page.", variant: "destructive" });
+              })
+              .finally(() => {
+                setProcessingPayment(false);
+                paymentInFlightRef.current = false;
+              });
+          },
+          confirm_close: true,
+        },
+        handler: function (paymentResponse: any) {
+          console.log("[PAYMENT] Razorpay handler called - payment successful", {
+            payment_id: paymentResponse.razorpay_payment_id,
+            order_id: paymentResponse.razorpay_order_id,
+          });
+          // Force close the Razorpay modal (SDK sometimes doesn't close on its own in production)
+          paymentCompleted = true;
+          try { rzp.close(); } catch (e) { console.warn("[PAYMENT] rzp.close() failed", e); }
+
+          // Run verification in background (non-blocking)
+          api.post('/payments/verify', {
             booking_id: bookingId,
             razorpay_payment_id: paymentResponse.razorpay_payment_id,
             razorpay_order_id: paymentResponse.razorpay_order_id,
             razorpay_signature: paymentResponse.razorpay_signature,
+          })
+          .then((verifyRes: any) => {
+            console.log("[PAYMENT] Verification successful", verifyRes.data);
+            const verifiedData = verifyRes.data;
+
+            const commonData = {
+              bookingNumber: verifiedData.booking?.booking_number || bookingNumber,
+              passengers: passengersList,
+              totalAmount: totalFare,
+              boardingLocation,
+              boardingTime,
+              destination: schedule?.to,
+              arrivalTime: schedule?.arr,
+              scheduleName: schedule?.name,
+              scheduleDate: schedule?.date,
+              customerName,
+              customerPhone,
+              customerEmail,
+              seatNumbers: [...selectedSeats],
+              busName: bus?.bus_name,
+              busNumber: bus?.bus_number,
+              busType: bus?.bus_type,
+              operator: bus?.operator,
+              routeFrom: schedule?.from,
+              routeTo: schedule?.to,
+              journeyDate: schedule?.date,
+              depTime: schedule?.dep,
+              arrTimeFull: schedule?.arr,
+              fare: schedule?.fare,
+              amenities: schedule?.amenities,
+              stops: allStops,
+              boardingPoint: boardingPoint || schedule?.from,
+              droppingPoint: droppingPoint || schedule?.to,
+            };
+
+            localStorage.removeItem('pending_booking');
+            setConfirmData(commonData);
+            setIsPassengerModalOpen(false);
+            setIsConfirmOpen(true);
+            console.log("[PAYMENT] Confirmation dialog shown");
+
+            generateAndEmailPdf(commonData).finally(() => {
+              console.log("[PAYMENT] Auto-email complete");
+            });
+          })
+          .catch((verifyError: any) => {
+            console.error("[PAYMENT] Verification failed AFTER payment was taken!", {
+              error: verifyError?.response?.data || verifyError?.message || verifyError,
+            });
+            toast({
+              title: "Payment Received - Verification Pending",
+              description: "Your payment was successful but verification is pending. Our team will confirm your booking shortly.",
+              variant: "default",
+            });
+          })
+          .finally(() => {
+            setProcessingPayment(false);
+            paymentInFlightRef.current = false;
           });
-
-          const verifiedData = verifyRes.data;
-          const schedule = selectedSchedule;
-          const bus = schedule?.bus_details;
-          const allStops = schedule?.stops || [];
-
-          const commonData = {
-            bookingNumber: verifiedData.booking?.booking_number || bookingNumber,
-            passengers: passengersList,
-            totalAmount: totalFare,
-            boardingLocation,
-            boardingTime,
-            destination: schedule?.to,
-            arrivalTime: schedule?.arr,
-            scheduleName: schedule?.name,
-            scheduleDate: schedule?.date,
-            customerName,
-            customerPhone,
-            customerEmail,
-            seatNumbers: [...selectedSeats],
-            busName: bus?.bus_name,
-            busNumber: bus?.bus_number,
-            busType: bus?.bus_type,
-            operator: bus?.operator,
-            routeFrom: schedule?.from,
-            routeTo: schedule?.to,
-            journeyDate: schedule?.date,
-            depTime: schedule?.dep,
-            arrTimeFull: schedule?.arr,
-            fare: schedule?.fare,
-            amenities: schedule?.amenities,
-            stops: allStops,
-            boardingPoint: boardingPoint || schedule?.from,
-            droppingPoint: droppingPoint || schedule?.to,
-          };
-
-          setConfirmData(commonData);
-          setIsPassengerModalOpen(false);
-          setIsConfirmOpen(true);
-
-          // Auto-send ticket email in background
-          generateAndEmailPdf(commonData);
-        },
-        modal: {
-          ondismiss: function () {
-            toast({ title: "Payment Cancelled", description: "You cancelled the payment. Your booking is pending.", variant: "destructive" });
-          },
         },
       };
 
+      if (unmountedRef.current) {
+        console.log("[PAYMENT] Component unmounted before Razorpay open");
+        throw new Error("Component unmounted");
+      }
       const rzp = new (window as any).Razorpay(options);
+      console.log("[PAYMENT] Step 3b: Opening Razorpay checkout modal...");
       rzp.open();
     } catch (error: any) {
+      console.error("[PAYMENT] Booking flow failed before payment modal:", {
+        error: error?.response?.data || error?.message || error,
+      });
       toast({
         title: "Booking Failed",
         description: error.response?.data?.message || error.message || "Something went wrong during checkout.",
         variant: "destructive"
       });
-    } finally {
       setProcessingPayment(false);
+      paymentInFlightRef.current = false;
     }
   };
 
-  // Handle ticket download → email send → redirect home
+  // Handle ticket download → email send → redirect home (only after email completes)
   const handleDownloadTicket = async () => {
     if (!confirmData) return;
+    console.log("[TICKET] handleDownloadTicket started");
     setDownloading(true);
     try {
       const d = confirmData;
@@ -440,7 +643,7 @@ export function BookingPage() {
       testY += 90;
       const neededH = testY + 16 + 60 + 20;
 
-      console.log("[Ticket] Generating PDF canvas...");
+      console.log("[TICKET] Generating PDF canvas...");
       const canvas = document.createElement("canvas");
       canvas.width = w;
       canvas.height = neededH;
@@ -522,11 +725,11 @@ export function BookingPage() {
         console.log("[Email] Skipped — no email address");
       }
 
-      console.log("[Ticket] Redirecting to home");
+      console.log("[TICKET] All done, navigating to home");
       setIsConfirmOpen(false);
-      setTimeout(() => navigate("/"), 200);
+      navigate("/");
     } catch (err: any) {
-      console.error("[Ticket] Error:", err?.response?.data || err?.message || err);
+      console.error("[TICKET] Error:", err?.response?.data || err?.message || err);
       const msg = err?.response?.data?.error || err?.message || "Could not complete";
       toast({ title: "Error", description: msg, variant: "destructive" });
     } finally {

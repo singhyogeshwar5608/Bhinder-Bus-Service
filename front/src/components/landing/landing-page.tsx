@@ -53,7 +53,7 @@ import { format } from "date-fns";
 import { useNavStore } from "@/lib/nav-store";
 import { cn, getImageUrl } from "@/lib/utils";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { useSearchCities, useTopBuses, useSearchBuses } from "@/hooks/use-search";
+import { useSearchCities, useTopBuses } from "@/hooks/use-search";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
@@ -76,12 +76,19 @@ export function LandingPage() {
     "/slide/bus interior back.png",
     "/slide/bus driver seat.png"
   ];
+  const mobileHeroImages = [
+    "/mobile slider/image1.jpeg",
+    "/mobile slider/image2.jpeg",
+    "/mobile slider/image3.jpeg",
+    "/mobile slider/image4.jpeg"
+  ];
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [imagesLoaded, setImagesLoaded] = useState(false);
 
   useEffect(() => {
     const preloadImages = async () => {
-      const promises = heroImages.map(
+      const allImages = [...heroImages, ...mobileHeroImages];
+      const promises = allImages.map(
         (src) =>
           new Promise<void>((resolve) => {
             const img = new Image();
@@ -116,6 +123,7 @@ export function LandingPage() {
   const [searchParams, setSearchParams] = useState({
     from: "Delhi",
     to: "Jaipur",
+    date: "",
     passengers: 1,
   });
 
@@ -126,11 +134,6 @@ export function LandingPage() {
 
   const { data: citiesData, isLoading: loadingCities } = useSearchCities();
   const { data: topBuses, isLoading: loadingTopBuses } = useTopBuses();
-  const { data: searchedBuses, isLoading: searchingBuses, refetch: refetchSearch } = useSearchBuses({
-    from_city: searchParams.from,
-    to_city: searchParams.to,
-    journey_date: searchParams.date,
-  });
   const [hasSearched, setHasSearched] = useState(false);
   const [viewingBusDetails, setViewingBusDetails] = useState<any>(null);
   const [viewingStoppages, setViewingStoppages] = useState<any>(null);
@@ -216,14 +219,20 @@ export function LandingPage() {
   const topBusToCities = Array.from(new Set(topBuses?.map((b: any) => b.to) || [])) as string[];
   const topBusTypes = Array.from(new Set(topBuses?.map((b: any) => b.type) || [])) as string[];
 
-  const fromCities = citiesData?.from_cities || ["Delhi", "Mumbai", "Bangalore", "Hyderabad", "Ahmedabad"];
-  const toCities = citiesData?.to_cities || ["Jaipur", "Pune", "Chennai", "Vijayawada", "Surat"];
+  const fromCities: string[] = citiesData?.from_cities || ["Delhi", "Mumbai", "Bangalore", "Hyderabad", "Ahmedabad"];
+  const toCities: string[] = citiesData?.to_cities || ["Jaipur", "Pune", "Chennai", "Vijayawada", "Surat"];
 
-  const filteredFromCities = fromCities.filter((city: string) =>
+  const stopCities = Array.from(
+    new Set(topBuses?.flatMap((bus: any) => bus.stops?.map((s: any) => s.stop_name) || []) || [])
+  ) as string[];
+
+  const allCities = Array.from(new Set([...fromCities, ...toCities, ...stopCities]));
+
+  const filteredFromCities = allCities.filter((city: string) =>
     city.toLowerCase().includes(fromSearchQuery.toLowerCase())
   );
   
-  const filteredToCities = toCities.filter((city: string) =>
+  const filteredToCities = allCities.filter((city: string) =>
     city.toLowerCase().includes(toSearchQuery.toLowerCase())
   );
 
@@ -254,7 +263,6 @@ export function LandingPage() {
 
   const handleSearch = () => {
     setHasSearched(true);
-    refetchSearch();
     setTimeout(() => {
       document.getElementById("schedules-section")?.scrollIntoView({ behavior: "smooth" });
     }, 100);
@@ -378,8 +386,8 @@ export function LandingPage() {
 
       {/* ═══ HERO SECTION ═══ */}
       <section className="relative pb-36 lg:pb-36 min-h-[500px] lg:min-h-[680px] flex flex-col justify-center items-start lg:items-center select-none text-left lg:text-center">
-        {/* Background Image Carousel (Crossfade) */}
-        <div className="absolute inset-x-0 top-16 bottom-0 z-0 overflow-hidden">
+        {/* Background Image Carousel (Crossfade) - Desktop only */}
+        <div className="absolute inset-x-0 top-16 bottom-0 z-0 overflow-hidden hidden lg:block">
           {heroImages.map((src, index) => (
             <img
               key={src}
@@ -390,6 +398,21 @@ export function LandingPage() {
                 index === currentImageIndex ? "opacity-100" : "opacity-0"
               )}
               style={{ objectFit: "fill" }}
+            />
+          ))}
+        </div>
+        {/* Background Image Carousel (Crossfade) - Mobile only */}
+        <div className="absolute inset-x-0 top-16 bottom-0 z-0 overflow-hidden block lg:hidden">
+          {mobileHeroImages.map((src, index) => (
+            <img
+              key={src}
+              src={src}
+              alt={`Mobile Slide ${index + 1}`}
+              className={cn(
+                "absolute inset-0 w-full h-full transition-all duration-1000 ease-in-out",
+                index === currentImageIndex ? "opacity-100" : "opacity-0"
+              )}
+              style={{ objectFit: "cover" }}
             />
           ))}
         </div>
@@ -614,13 +637,6 @@ export function LandingPage() {
                 <Search className="w-4 h-4 text-white" />
                 Search Buses
               </Button>
-              <button
-                type="button"
-                className="hidden lg:flex w-12 h-12 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 items-center justify-center text-slate-700 hover:scale-102 active:scale-95 transition-all cursor-pointer shadow-sm"
-                title="Filters"
-              >
-                <SlidersHorizontal className="w-4.5 h-4.5" />
-              </button>
             </div>
           </div>
 
@@ -1122,7 +1138,7 @@ export function LandingPage() {
 
           {/* Bus Listings */}
           <div className="space-y-4">
-            {loadingTopBuses || (hasSearched && searchingBuses) ? (
+            {loadingTopBuses ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <div
                   key={i}
@@ -1137,7 +1153,12 @@ export function LandingPage() {
                 </div>
               ))
             ) : (() => {
-              const currentBuses = hasSearched ? searchedBuses : topBuses;
+              const currentBuses = hasSearched
+                ? topBuses?.filter((bus: any) => {
+                    const busStopNames = bus.stops?.map((s: any) => s.stop_name) || [];
+                    return (bus.from === searchParams.from || busStopNames.includes(searchParams.from)) && bus.to === searchParams.to;
+                  })
+                : topBuses;
               if (!currentBuses || currentBuses.length === 0) {
                 return (
                   <div className="bg-white p-8 text-center rounded-xl border border-gray-200 text-gray-500">
@@ -1494,7 +1515,12 @@ export function LandingPage() {
 
           {/* Show More Schedules CTA Button */}
           {(() => {
-            const currentBuses = hasSearched ? searchedBuses : topBuses;
+            const currentBuses = hasSearched
+              ? topBuses?.filter((bus: any) => {
+                  const busStopNames = bus.stops?.map((s: any) => s.stop_name) || [];
+                  return (bus.from === searchParams.from || busStopNames.includes(searchParams.from)) && bus.to === searchParams.to;
+                })
+              : topBuses;
             const filteredTopBuses = currentBuses?.filter((bus: any) => {
               const matchesFrom = topBusFromFilter ? bus.from === topBusFromFilter : true;
               const matchesTo = topBusToFilter ? bus.to === topBusToFilter : true;
@@ -2051,7 +2077,7 @@ function PublicBusDetailsDialog({ bus, open, onOpenChange }: { bus: any, open: b
                   {bus.images.map((img: string, idx: number) => (
                     <div key={idx} className="aspect-square rounded-lg overflow-hidden border border-gray-100">
                       <img 
-                        src={`${import.meta.env.VITE_STORAGE_URL || 'http://localhost:8000/storage'}/${img}`} 
+                        src={`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api'}/image/${img}`} 
                         alt="Bus" 
                         className="w-full h-full object-cover hover:scale-110 transition-transform duration-300" 
                       />

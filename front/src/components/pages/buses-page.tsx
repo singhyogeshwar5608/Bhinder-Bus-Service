@@ -281,6 +281,13 @@ function DatePickerField({
 function BusViewDialog({ bus, open, onOpenChange }: { bus: any, open: boolean, onOpenChange: (open: boolean) => void }) {
   if (!bus) return null;
 
+  const allImages = Array.isArray(bus.images) ? bus.images : (typeof bus.images === 'string' ? JSON.parse(bus.images) : []);
+  const [activeImage, setActiveImage] = useState(allImages[0] || null);
+
+  useEffect(() => {
+    setActiveImage(allImages[0] || null);
+  }, [bus?.id]);
+
   const details = [
     { label: "Bus Number", value: bus.bus_number, icon: FileText, color: "text-blue-600", bg: "bg-blue-50" },
     { label: "Bus Type", value: bus.bus_type, icon: Bus, color: "text-purple-600", bg: "bg-purple-50" },
@@ -334,33 +341,52 @@ function BusViewDialog({ bus, open, onOpenChange }: { bus: any, open: boolean, o
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 custom-scrollbar">
           <div className="space-y-6 sm:space-y-8">
             {/* Images Grid */}
-            {bus.images && bus.images.length > 0 && (
+            {allImages.length > 0 && (
               <div>
                 <h4 className="text-xs sm:text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
                   <div className="w-1 h-4 bg-blue-600 rounded-full" />
                   Vehicle Photos
                 </h4>
-                <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-3">
-                  {(Array.isArray(bus.images) ? bus.images : (typeof bus.images === 'string' ? JSON.parse(bus.images) : [])).map((img: string, idx: number) => (
-                    <div key={idx} className="aspect-square rounded-lg overflow-hidden border border-gray-100">
-                      <img 
-                        src={getImageUrl(img, bus.id)} 
-                        alt="Bus" 
-                        className="w-full h-full object-cover hover:scale-110 transition-transform duration-300" 
+                {/* Main Large Image */}
+                <div className="w-full aspect-video rounded-xl overflow-hidden border border-gray-200 bg-gray-50 mb-3">
+                  <img
+                    src={getImageUrl(activeImage, bus.id)}
+                    alt="Bus"
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      const target = e.currentTarget;
+                      if (target.dataset?.fallbackTried) { target.src = "/bus-1.png"; return; }
+                      target.dataset.fallbackTried = "1";
+                      const apiUrl = import.meta.env.VITE_API_BASE_URL;
+                      if (apiUrl && activeImage && !activeImage.startsWith('http')) {
+                        target.src = `${apiUrl}/image/${activeImage.startsWith('/') ? activeImage.substring(1) : activeImage}`;
+                        return;
+                      }
+                      target.src = "/bus-1.png";
+                    }}
+                  />
+                </div>
+                {/* Thumbnail Strip */}
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {allImages.map((img: string, idx: number) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setActiveImage(img)}
+                      className={cn(
+                        "w-16 h-16 rounded-lg overflow-hidden border-2 shrink-0 transition-all duration-200",
+                        activeImage === img ? "border-blue-500 ring-2 ring-blue-200" : "border-gray-200 hover:border-gray-400 opacity-70 hover:opacity-100"
+                      )}
+                    >
+                      <img
+                        src={getImageUrl(img, bus.id)}
+                        alt="Bus"
+                        className="w-full h-full object-cover"
                         onError={(e) => {
-                          const target = e.currentTarget;
-                          if (target.dataset?.fallbackTried) { target.src = "/bus-1.png"; return; }
-                          target.dataset.fallbackTried = "1";
-                          const apiUrl = import.meta.env.VITE_API_BASE_URL;
-                          if (apiUrl && !img.startsWith('http')) {
-                            const storageUrl = apiUrl.replace(/\/api\/?$/, '/storage');
-                            target.src = `${storageUrl}/${img.startsWith('/') ? img.substring(1) : img}`;
-                            return;
-                          }
-                          target.src = "/bus-1.png";
+                          e.currentTarget.src = "/bus-1.png";
                         }}
                       />
-                    </div>
+                    </button>
                   ))}
                 </div>
               </div>
@@ -571,7 +597,7 @@ function AddBusForm({ onCancel, editData }: { onCancel: () => void, editData?: a
       if (img.startsWith('http://') || img.startsWith('https://')) {
         try {
           const u = new URL(img);
-          const match = u.pathname.match(/\/storage\/(.+)/);
+          const match = u.pathname.match(/\/image\/(.+)/);
           if (match) return match[1];
         } catch {}
       }
@@ -1610,15 +1636,14 @@ export function BusesPage() {
                                     const first = bus.images[0];
                                     if (typeof first === 'string') {
                                       if (first.startsWith('http')) {
-                                        try { relPath = new URL(first).pathname.replace(/^\/storage\//, ''); } catch {}
+                                        try { relPath = new URL(first).pathname.replace(/^\/api\/image\//, ''); } catch {}
                                       } else {
                                         relPath = first;
                                       }
                                     }
                                   }
                                   if (relPath) {
-                                    const storageUrl = apiUrl.replace(/\/api\/?$/, '/storage');
-                                    target.src = `${storageUrl}/${relPath}`;
+                                    target.src = `${apiUrl}/image/${relPath}`;
                                     return;
                                   }
                                 }

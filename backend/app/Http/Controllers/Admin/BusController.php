@@ -73,7 +73,7 @@ class BusController extends Controller
 
     public function show($id)
     {
-        $bus = $this->busService.getBusById($id);
+        $bus = $this->busService->getBusById($id);
         if (!$bus) {
             return response()->json(['message' => 'Bus not found'], 404);
         }

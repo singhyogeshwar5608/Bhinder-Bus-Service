@@ -40,7 +40,7 @@ class BusResource extends JsonResource
             'puc_number' => $this->puc_number,
             'puc_valid_till' => $this->puc_valid_till,
             'images' => $this->images ? collect($this->images)->map(function ($img) {
-                return url('storage/' . $img);
+                return url('/api/image/' . $img);
             })->toArray() : null,
             'driver' => new DriverResource($this->whenLoaded('driver')),
             'created_at' => $this->created_at,

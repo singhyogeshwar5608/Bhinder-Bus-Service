@@ -20,6 +20,14 @@ use App\Http\Controllers\Public\PaymentController;
 | Public APIs
 |--------------------------------------------------------------------------
 */
+Route::get('/image/{path}', function ($path) {
+    $fullPath = storage_path('app/public/' . $path);
+    if (!file_exists($fullPath) || !is_file($fullPath)) {
+        abort(404);
+    }
+    return response()->file($fullPath);
+})->where('path', '.*');
+
 Route::get('/search-buses', [SearchController::class, 'search']);
 Route::get('/cities', [SearchController::class, 'getCities']);
 Route::get('/popular-routes', [SearchController::class, 'getPopularRoutes']);
@@ -45,6 +53,7 @@ Route::post('/bookings/create', [PublicBookingController::class, 'create']);
 Route::prefix('payments')->group(function () {
     Route::post('/initiate', [PaymentController::class, 'initiate']);
     Route::post('/verify', [PaymentController::class, 'verify']);
+    Route::get('/order-status/{razorpayOrderId}', [PaymentController::class, 'orderStatus']);
 });
 
 /*

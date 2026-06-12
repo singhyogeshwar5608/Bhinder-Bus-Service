@@ -33,10 +33,8 @@ export function getImageUrl(path: string | any[] | null | undefined, fallbackId?
 
   const cleanPath = imagePath.startsWith("/") ? imagePath.substring(1) : imagePath;
 
-  // Derive storage URL from API URL if VITE_STORAGE_URL is not set
-  const configuredUrl = import.meta.env.VITE_STORAGE_URL;
   const apiUrl = import.meta.env.VITE_API_BASE_URL;
-  const storageUrl = configuredUrl || (apiUrl ? apiUrl.replace(/\/api\/?$/, '/storage') : "http://localhost:8000/storage");
+  const baseUrl = apiUrl ? apiUrl.replace(/\/api\/?$/, '') : "http://localhost:8000";
 
-  return `${storageUrl}/${cleanPath}`;
+  return `${baseUrl}/api/image/${cleanPath}`;
 }

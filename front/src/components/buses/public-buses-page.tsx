@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Bus,
   MapPin,
@@ -60,12 +60,20 @@ export function PublicBusesPage() {
   const { data: buses, isLoading: loadingBuses } = usePublicBuses();
   const [viewingBus, setViewingBus] = useState<any>(null);
   const [expandedBusIds, setExpandedBusIds] = useState<number[]>([]);
+  const [activeBusImage, setActiveBusImage] = useState<{ busId: number; img: string } | null>(null);
 
-  const toggleBusExpand = (e: React.MouseEvent, busId: number) => {
+  const toggleBusExpand = (e: React.MouseEvent, busId: number, images?: any) => {
     e.stopPropagation();
+    const willExpand = !expandedBusIds.includes(busId);
     setExpandedBusIds(prev =>
-      prev.includes(busId) ? prev.filter(id => id !== busId) : [...prev, busId]
+      willExpand ? [...prev, busId] : prev.filter(id => id !== busId)
     );
+    if (willExpand) {
+      const imgArr = Array.isArray(images) ? images : (typeof images === 'string' ? JSON.parse(images || '[]') : []);
+      if (imgArr.length > 0) {
+        setActiveBusImage({ busId, img: imgArr[0] });
+      }
+    }
   };
 
   // Extract unique origin, destination cities, and types served by any bus
@@ -463,7 +471,7 @@ export function PublicBusesPage() {
               return (
                 <div
                   key={bus.id}
-                  onClick={(e) => toggleBusExpand(e, bus.id)}
+                  onClick={(e) => toggleBusExpand(e, bus.id, bus.images)}
                   className={cn(
                     "bg-white rounded-xl border border-gray-200 shadow-sm p-3 sm:p-4 hover:shadow-md hover:border-blue-200 transition-all duration-200 cursor-pointer",
                     isExpanded && "border-blue-300 ring-1 ring-blue-50/50 shadow-md"
@@ -564,7 +572,7 @@ export function PublicBusesPage() {
                             ? "bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200" 
                             : "bg-blue-600 hover:bg-blue-700 text-white"
                         )}
-                        onClick={(e) => toggleBusExpand(e, bus.id)}
+                        onClick={(e) => toggleBusExpand(e, bus.id, bus.images)}
                       >
                         {isExpanded ? "Hide" : "View Details"}
                       </Button>
@@ -585,29 +593,41 @@ export function PublicBusesPage() {
                             <div className="w-1 h-3 bg-blue-600 rounded-full" />
                             Vehicle Photos
                           </h4>
-                          <div className="aspect-[16/9] lg:aspect-video w-full rounded-xl overflow-hidden border border-gray-150 bg-gray-50 shadow-2xs">
+                          <div className="w-full max-h-[300px] rounded-xl overflow-hidden border border-gray-150 bg-gray-100 shadow-2xs flex items-center justify-center">
                             <img 
-                              src={getImageUrl(bus.images, bus.id)} 
+                              src={getImageUrl(activeBusImage?.busId === bus.id ? activeBusImage?.img : bus.images, bus.id)} 
                               alt={bus.name} 
-                              className="w-full h-full object-cover" 
+                              className="w-full h-full object-cover max-h-[300px]" 
                               onError={(e) => { e.currentTarget.src = "/bus-1.png"; }}
                             />
                           </div>
                           {/* Additional Thumbnails */}
-                          {bus.images && (typeof bus.images === 'string' ? JSON.parse(bus.images) : bus.images).length > 1 && (
-                            <div className="flex gap-1.5 overflow-x-auto pb-1 custom-scrollbar">
-                              {(typeof bus.images === 'string' ? JSON.parse(bus.images) : bus.images).map((img: string, idx: number) => (
-                                <div key={idx} className="w-10 h-10 rounded-lg overflow-hidden border border-gray-100 bg-gray-50 shrink-0">
-                                  <img 
-                                    src={getImageUrl(img, bus.id)} 
-                                    alt="Thumbnail" 
-                                    className="w-full h-full object-cover" 
-                                    onError={(e) => { e.currentTarget.src = "/bus-1.png"; }}
-                                  />
-                                </div>
-                              ))}
-                            </div>
-                          )}
+                          {(() => {
+                            const imgs = Array.isArray(bus.images) ? bus.images : (typeof bus.images === 'string' ? JSON.parse(bus.images || '[]') : []);
+                            return imgs.length > 1 ? (
+                              <div className="flex gap-1.5 overflow-x-auto pb-1 custom-scrollbar">
+                                {imgs.map((img: string, idx: number) => (
+                                  <button
+                                    key={idx}
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); setActiveBusImage({ busId: bus.id, img }); }}
+                                    className={cn(
+                                      "w-10 h-10 rounded-lg overflow-hidden border-2 shrink-0 transition-all duration-200",
+                                      (activeBusImage?.busId === bus.id && activeBusImage?.img === img)
+                                        ? "border-blue-500 ring-2 ring-blue-200" : "border-gray-100 hover:border-gray-400 opacity-70 hover:opacity-100"
+                                    )}
+                                  >
+                                    <img 
+                                      src={getImageUrl(img, bus.id)} 
+                                      alt="Thumbnail" 
+                                      className="w-full h-full object-cover" 
+                                      onError={(e) => { e.currentTarget.src = "/bus-1.png"; }}
+                                    />
+                                  </button>
+                                ))}
+                              </div>
+                            ) : null;
+                          })()}
                         </div>
 
                         {/* Column 2 - Technical Specifications */}
@@ -824,6 +844,13 @@ export function PublicBusesPage() {
 function PublicBusViewDialog({ bus, open, onOpenChange }: { bus: any, open: boolean, onOpenChange: (open: boolean) => void }) {
   if (!bus) return null;
 
+  const allImages = Array.isArray(bus.images) ? bus.images : (typeof bus.images === 'string' ? JSON.parse(bus.images || '[]') : []);
+  const [activeImage, setActiveImage] = useState(allImages[0] || null);
+
+  useEffect(() => {
+    setActiveImage(allImages[0] || null);
+  }, [bus?.id]);
+
   const details = [
     { label: "Bus Number", value: bus.bus_number, icon: FileText, color: "text-blue-600", bg: "bg-blue-50" },
     { label: "Bus Type", value: bus.bus_type, icon: Bus, color: "text-purple-600", bg: "bg-purple-50" },
@@ -876,23 +903,39 @@ function PublicBusViewDialog({ bus, open, onOpenChange }: { bus: any, open: bool
 
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 custom-scrollbar">
           <div className="space-y-6 sm:space-y-8">
-            {/* Images Grid */}
-            {bus.images && bus.images.length > 0 && (
+            {/* Images Gallery */}
+            {allImages.length > 0 && (
               <div>
                 <h4 className="text-xs sm:text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
                   <div className="w-1 h-4 bg-blue-600 rounded-full" />
                   Vehicle Photos
                 </h4>
-                <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-3">
-                  {(Array.isArray(bus.images) ? bus.images : (typeof bus.images === 'string' ? JSON.parse(bus.images) : [])).map((img: string, idx: number) => (
-                    <div key={idx} className="aspect-square rounded-lg overflow-hidden border border-gray-100">
-                      <img 
-                        src={getImageUrl(img, bus.id)} 
-                        alt="Bus" 
-                        className="w-full h-full object-cover hover:scale-110 transition-transform duration-300" 
+                <div className="w-full max-h-[400px] rounded-xl overflow-hidden border border-gray-200 bg-gray-100 mb-3 flex items-center justify-center">
+                  <img
+                    src={getImageUrl(activeImage, bus.id)}
+                    alt="Bus"
+                    className="w-full h-full object-cover max-h-[400px]"
+                    onError={(e) => { e.currentTarget.src = "/bus-1.png"; }}
+                  />
+                </div>
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {allImages.map((img: string, idx: number) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setActiveImage(img)}
+                      className={cn(
+                        "w-16 h-16 rounded-lg overflow-hidden border-2 shrink-0 transition-all duration-200",
+                        activeImage === img ? "border-blue-500 ring-2 ring-blue-200" : "border-gray-200 hover:border-gray-400 opacity-70 hover:opacity-100"
+                      )}
+                    >
+                      <img
+                        src={getImageUrl(img, bus.id)}
+                        alt="Bus"
+                        className="w-full h-full object-cover"
                         onError={(e) => { e.currentTarget.src = "/bus-1.png"; }}
                       />
-                    </div>
+                    </button>
                   ))}
                 </div>
               </div>

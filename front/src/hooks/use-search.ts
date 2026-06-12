@@ -3,14 +3,18 @@ import axios from 'axios';
 
 const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
 
-export const useSearchBuses = (params: { from_city: string; to_city: string; journey_date: string }) => {
+export const useSearchBuses = (params: { from_city: string; to_city: string; journey_date?: string }) => {
   return useQuery({
-    queryKey: ['search-buses', params],
+    queryKey: ['search-buses', { from_city: params.from_city, to_city: params.to_city, journey_date: params.journey_date || '' }],
     queryFn: async () => {
-      const response = await axios.get(`${API_URL}/search-buses`, { params });
+      const queryParams: Record<string, string> = { from_city: params.from_city, to_city: params.to_city };
+      if (params.journey_date) {
+        queryParams.journey_date = params.journey_date;
+      }
+      const response = await axios.get(`${API_URL}/search-buses`, { params: queryParams });
       return response.data;
     },
-    enabled: !!(params.from_city && params.to_city && params.journey_date),
+    enabled: !!(params.from_city && params.to_city),
   });
 };
 
