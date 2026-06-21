@@ -12,6 +12,13 @@ use Illuminate\Support\Facades\Log;
 
 class PaymentController extends Controller
 {
+    protected \App\Services\BookingService $bookingService;
+
+    public function __construct(\App\Services\BookingService $bookingService)
+    {
+        $this->bookingService = $bookingService;
+    }
+
     private function razorpayHeaders(): array
     {
         $key = config('services.razorpay.key_id');
@@ -159,10 +166,7 @@ class PaymentController extends Controller
                 ]);
             }
 
-            $booking->update([
-                'payment_status' => 'paid',
-                'booking_status' => 'confirmed',
-            ]);
+            $this->bookingService->confirmBookingSeats($booking);
 
             Payment::create([
                 'booking_id' => $booking->id,

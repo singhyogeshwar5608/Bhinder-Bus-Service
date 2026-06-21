@@ -43,6 +43,8 @@ import {
   Lightbulb,
   Moon,
   Layers,
+  Coffee,
+  Snowflake,
   CalendarDays,
   ChevronDown,
   SlidersHorizontal,
@@ -71,10 +73,10 @@ export function LandingPage() {
 
   // Hero section sliding images
   const heroImages = [
-    "/slide/bus-hero.png",
-    "/slide/bus interior.png",
-    "/slide/bus interior back.png",
-    "/slide/bus driver seat.png"
+    "/slide/bus-hero.jpeg",
+    "/slide/bus interior.jpeg",
+    "/slide/bus interior back.jpeg",
+    "/slide/bus driver seat.jpeg"
   ];
   const mobileHeroImages = [
     "/mobile slider/image1.jpeg",
@@ -83,6 +85,17 @@ export function LandingPage() {
     "/mobile slider/image4.jpeg"
   ];
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+  const sliderImages = [
+    "/slider/image1.png",
+    "/slider/image2.png",
+    "/slider/image3.png",
+    "/slider/image4.png",
+    "/slider/image5.png",
+    "/slider/image6.png",
+    "/slider/image7.png",
+    "/slider/image8.png",
+  ];
   const [imagesLoaded, setImagesLoaded] = useState(false);
 
   useEffect(() => {
@@ -121,8 +134,8 @@ export function LandingPage() {
   }, []);
   
   const [searchParams, setSearchParams] = useState({
-    from: "Delhi",
-    to: "Jaipur",
+    from: "",
+    to: "",
     date: "",
     passengers: 1,
   });
@@ -213,6 +226,8 @@ export function LandingPage() {
     "Reading Light": Lightbulb,
     "A/C": Wind,
     "AC": Wind,
+    "Mini Freeze": Snowflake,
+    "Coffee": Coffee,
   };
 
   const topBusFromCities = Array.from(new Set(topBuses?.map((b: any) => b.from) || [])) as string[];
@@ -280,7 +295,7 @@ export function LandingPage() {
             </div>
 
             <nav className="hidden lg:flex items-center gap-1">
-              {["Home", "Buses", "Routes", "Track Booking"].map(
+              {["Home", "Buses", "Routes", "My Ticket"].map(
                 (link, i) => {
                   const isActive = (i === 0 && window.location.pathname === "/") || 
                                    (i === 1 && window.location.pathname === "/buses") || 
@@ -346,7 +361,7 @@ export function LandingPage() {
         {mobileMenuOpen && (
           <div className="lg:hidden bg-white border-t border-gray-100 shadow-lg">
             <div className="px-4 py-3 space-y-1">
-              {["Home", "Buses", "Routes", "Track Booking"].map(
+              {["Home", "Buses", "Routes", "My Ticket"].map(
                 (link, i) => (
                   <a
                     key={link}
@@ -385,39 +400,33 @@ export function LandingPage() {
       </header>
 
       {/* ═══ HERO SECTION ═══ */}
-      <section className="relative pb-36 lg:pb-36 min-h-[500px] lg:min-h-[680px] flex flex-col justify-center items-start lg:items-center select-none text-left lg:text-center">
-        {/* Background Image Carousel (Crossfade) - Desktop only */}
+      <section className="relative pb-36 lg:pb-36 aspect-[4/5] lg:aspect-auto lg:min-h-[680px] flex flex-col justify-center items-start lg:items-center select-none text-left lg:text-center">
+        {/* Background Video - Desktop only */}
         <div className="absolute inset-x-0 top-16 bottom-0 z-0 overflow-hidden hidden lg:block">
-          {heroImages.map((src, index) => (
-            <img
-              key={src}
-              src={src}
-              alt={`Slide ${index + 1}`}
-              className={cn(
-                "absolute inset-0 w-full h-full transition-all duration-1000 ease-in-out",
-                index === currentImageIndex ? "opacity-100" : "opacity-0"
-              )}
-              style={{ objectFit: "fill" }}
-            />
-          ))}
+          <video
+            src="/slide/desktop video.mp4"
+            autoPlay
+            muted
+            loop
+            playsInline
+            className="absolute inset-0 w-full h-full"
+            style={{ objectFit: "cover" }}
+          />
         </div>
-        {/* Background Image Carousel (Crossfade) - Mobile only */}
+        {/* Background Video - Mobile only */}
         <div className="absolute inset-x-0 top-16 bottom-0 z-0 overflow-hidden block lg:hidden">
-          {mobileHeroImages.map((src, index) => (
-            <img
-              key={src}
-              src={src}
-              alt={`Mobile Slide ${index + 1}`}
-              className={cn(
-                "absolute inset-0 w-full h-full transition-all duration-1000 ease-in-out",
-                index === currentImageIndex ? "opacity-100" : "opacity-0"
-              )}
-              style={{ objectFit: "cover" }}
-            />
-          ))}
+          <video
+            src="/mobile slider/mobile video.mp4"
+            autoPlay
+            muted
+            loop
+            playsInline
+            className="absolute inset-0 w-full h-full"
+            style={{ objectFit: "cover" }}
+          />
         </div>
-        {/* Responsive Background Overlay: Dark on mobile, white overlay on desktop */}
-        <div className="absolute inset-x-0 top-16 bottom-0 bg-black/40 lg:bg-white/10 lg:backdrop-blur-[0.5px] z-0"></div>
+        {/* Responsive Background Overlay: black overlay on desktop */}
+        <div className="absolute inset-x-0 top-16 bottom-0 lg:bg-black/50 lg:backdrop-blur-[0.5px] z-0"></div>
 
         <div className="absolute inset-x-0 top-16 bottom-0 z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
         </div>
@@ -461,7 +470,7 @@ export function LandingPage() {
 
             {/* Responsive Input Fields Container */}
             <div className="flex flex-col lg:grid lg:grid-cols-2 gap-2.5 lg:gap-4 relative pt-1 lg:pt-3">
-              {/* Wrapper for From, To and Swap button to ensure robust vertical centering on mobile */}
+              {/* Wrapper for From and To */}
               <div className="relative flex flex-col gap-2.5 lg:contents">
                 {/* From Popover */}
                 <Popover open={fromOpen} onOpenChange={setFromOpen}>
@@ -473,7 +482,11 @@ export function LandingPage() {
                         </div>
                         <div className="min-w-0 text-left">
                           <p className="text-[9px] lg:text-[10px] text-slate-400 font-bold uppercase tracking-wider">FROM</p>
-                          <p className="text-sm lg:text-base font-extrabold text-slate-900 truncate leading-tight mt-0.5">{searchParams.from}</p>
+                          {searchParams.from ? (
+                            <p className="text-sm lg:text-base font-extrabold text-slate-900 truncate leading-tight mt-0.5">{searchParams.from}</p>
+                          ) : (
+                            <p className="text-sm lg:text-base font-medium text-slate-400 truncate leading-tight mt-0.5">Search your city here</p>
+                          )}
                           <p className="text-[9px] lg:text-[10px] text-slate-400 font-semibold mt-0.5">Departure City</p>
                         </div>
                       </div>
@@ -540,16 +553,6 @@ export function LandingPage() {
                   </PopoverContent>
                 </Popover>
 
-                {/* Swap Button (Centered vertically on mobile between From and To cards) */}
-                <button
-                  type="button"
-                  onClick={handleSwapCities}
-                  className="absolute left-1/2 top-1/2 lg:left-[25%] lg:top-[50%] -translate-x-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-white border border-slate-200 shadow-md flex items-center justify-center hover:bg-blue-50 hover:scale-105 active:scale-95 transition-all cursor-pointer"
-                  title="Swap Cities"
-                >
-                  <ArrowLeftRight className="w-4 h-4 text-blue-600 rotate-90 lg:rotate-0" />
-                </button>
-
                 {/* To Popover */}
                 <Popover open={toOpen} onOpenChange={setToOpen}>
                   <PopoverTrigger asChild>
@@ -560,7 +563,11 @@ export function LandingPage() {
                         </div>
                         <div className="min-w-0 text-left">
                           <p className="text-[9px] lg:text-[10px] text-slate-400 font-bold uppercase tracking-wider">TO</p>
-                          <p className="text-sm lg:text-base font-extrabold text-slate-900 truncate leading-tight mt-0.5">{searchParams.to}</p>
+                          {searchParams.to ? (
+                            <p className="text-sm lg:text-base font-extrabold text-slate-900 truncate leading-tight mt-0.5">{searchParams.to}</p>
+                          ) : (
+                            <p className="text-sm lg:text-base font-medium text-slate-400 truncate leading-tight mt-0.5">Search your city here</p>
+                          )}
                           <p className="text-[9px] lg:text-[10px] text-slate-400 font-semibold mt-0.5">Destination City</p>
                         </div>
                       </div>
@@ -626,6 +633,16 @@ export function LandingPage() {
                   </PopoverContent>
                 </Popover>
               </div>
+
+              {/* Swap Button (between From and To cards on both mobile and desktop) */}
+              <button
+                type="button"
+                onClick={handleSwapCities}
+                className="absolute left-1/2 top-[calc(50%-8px)] lg:left-1/2 lg:top-1/2 -translate-x-1/2 -translate-y-1/2 z-20 w-9 h-9 rounded-full bg-white border-2 border-blue-200 shadow-md flex items-center justify-center hover:bg-blue-50 hover:scale-110 active:scale-95 transition-all cursor-pointer"
+                title="Swap Cities"
+              >
+                <ArrowLeftRight className="w-4 h-4 text-blue-600" />
+              </button>
             </div>
 
             {/* Search Button and Filter slider row */}
@@ -661,6 +678,39 @@ export function LandingPage() {
                 </div>
               );
             })}
+          </div>
+        </div>
+      </section>
+
+      {/* ═══ INFINITE IMAGE SLIDER ═══ */}
+      <section className="py-8 lg:py-12 bg-white overflow-hidden">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-6">
+          <h2 className="text-2xl lg:text-3xl font-extrabold text-slate-900 text-center">
+            Our Fleet
+          </h2>
+          <p className="text-slate-500 text-sm lg:text-base text-center mt-2 max-w-2xl mx-auto">
+            Experience comfort and safety with our modern fleet of buses
+          </p>
+        </div>
+        <div className="relative overflow-hidden">
+          <div className="flex animate-marquee-fast lg:animate-marquee hover:[animation-play-state:paused]">
+            {[...sliderImages, ...sliderImages].map((src, index) => (
+              <div
+                key={`${src}-${index}`}
+                className="w-1/2 lg:w-1/5 flex-shrink-0 px-2"
+              >
+                <div className="rounded-2xl overflow-hidden border border-slate-200 shadow-md shadow-slate-200/50 hover:shadow-lg hover:shadow-slate-300/60 transition-all duration-300 group cursor-pointer">
+                  <div className="relative">
+                    <img
+                      src={src}
+                      alt={`Slide ${(index % sliderImages.length) + 1}`}
+                      className="w-full h-auto lg:h-56 object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
+                    <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/70 via-black/30 to-transparent pointer-events-none group-hover:opacity-80 transition-opacity" />
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </section>
@@ -1156,13 +1206,18 @@ export function LandingPage() {
               const currentBuses = hasSearched
                 ? topBuses?.filter((bus: any) => {
                     const busStopNames = bus.stops?.map((s: any) => s.stop_name) || [];
-                    return (bus.from === searchParams.from || busStopNames.includes(searchParams.from)) && bus.to === searchParams.to;
+                    const matchesFrom = !searchParams.from || bus.from === searchParams.from || busStopNames.includes(searchParams.from);
+                    const matchesTo = !searchParams.to || bus.to === searchParams.to;
+                    if (searchParams.from && searchParams.to) return matchesFrom && matchesTo;
+                    if (searchParams.from) return matchesFrom;
+                    if (searchParams.to) return matchesTo;
+                    return true;
                   })
                 : topBuses;
               if (!currentBuses || currentBuses.length === 0) {
                 return (
                   <div className="bg-white p-8 text-center rounded-xl border border-gray-200 text-gray-500">
-                    {hasSearched ? `No buses found for ${searchParams.from} to ${searchParams.to}` : "No active schedules found."}
+                    {hasSearched ? (searchParams.from ? `No buses found from ${searchParams.from}` + (searchParams.to ? ` to ${searchParams.to}` : "") : "No buses found") : "No active schedules found."}
                   </div>
                 );
               }
@@ -1518,7 +1573,12 @@ export function LandingPage() {
             const currentBuses = hasSearched
               ? topBuses?.filter((bus: any) => {
                   const busStopNames = bus.stops?.map((s: any) => s.stop_name) || [];
-                  return (bus.from === searchParams.from || busStopNames.includes(searchParams.from)) && bus.to === searchParams.to;
+                  const matchesFrom = !searchParams.from || bus.from === searchParams.from || busStopNames.includes(searchParams.from);
+                  const matchesTo = !searchParams.to || bus.to === searchParams.to;
+                  if (searchParams.from && searchParams.to) return matchesFrom && matchesTo;
+                  if (searchParams.from) return matchesFrom;
+                  if (searchParams.to) return matchesTo;
+                  return true;
                 })
               : topBuses;
             const filteredTopBuses = currentBuses?.filter((bus: any) => {
@@ -1889,11 +1949,18 @@ export function LandingPage() {
                 Your journey, our priority! Book safe, travel happy!
               </p>
               <div className="flex items-center gap-3">
-                {[Facebook, Twitter, Instagram, Youtube].map((Icon, i) => (
+                {[
+                  { icon: Facebook, url: "https://www.facebook.com/share/1BwxTLz5LS/?mibextid=wwXIfr", color: "bg-[#1877F2] hover:shadow-blue-500/30" },
+                  { icon: Twitter, url: "https://x.com/bhinder_bus?s=11", color: "bg-black hover:shadow-gray-500/30" },
+                  { icon: Instagram, url: "https://www.instagram.com/bhinder.bus.service?igsh=Nzhhb3NxMHE5cm10&utm_source=qr", color: "bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 hover:shadow-pink-500/30" },
+                  { icon: Youtube, url: "https://youtube.com/@bhinder_bus_service?si=kd831ChekfW3c2qc", color: "bg-[#FF0000] hover:shadow-red-500/30" },
+                ].map(({ icon: Icon, url, color }, i) => (
                   <a
                     key={i}
-                    href="#"
-                    className="w-9 h-9 rounded-full bg-slate-800 hover:bg-blue-600 flex items-center justify-center transition-colors"
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`w-10 h-10 rounded-full ${color} flex items-center justify-center transition-all duration-300 hover:scale-110 hover:shadow-lg`}
                   >
                     <Icon className="w-4 h-4" />
                   </a>
@@ -1919,9 +1986,9 @@ export function LandingPage() {
             <div>
               <h3 className="text-white font-semibold text-sm mb-4">Quick Links</h3>
               <ul className="space-y-2.5">
-                {["Buses", "Routes", "Offers", "Track Booking"].map((link) => (
+                {["Buses", "Routes", "Offers", "My Ticket"].map((link) => (
                   <li key={link}>
-                    <button onClick={() => navigate(link === "Track Booking" ? "/track" : "/")} className="text-sm text-gray-400 hover:text-white transition-colors">
+                    <button onClick={() => navigate(link === "My Ticket" ? "/track" : "/")} className="text-sm text-gray-400 hover:text-white transition-colors">
                       {link}
                     </button>
                   </li>
@@ -1944,6 +2011,23 @@ export function LandingPage() {
             </div>
           </div>
 
+          {/* Map */}
+          <div className="mt-10 pt-8 border-t border-slate-700">
+            <div className="w-full h-[200px] sm:h-[250px] rounded-xl overflow-hidden border border-slate-700">
+              <iframe
+                src="https://maps.google.com/maps?q=132/15+Ind.Area+Near+SBI+Bank+Patiala+Road+Cheeka&output=embed"
+                width="100%"
+                height="100%"
+                style={{ border: 0 }}
+                allowFullScreen
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+                title="Bhinder Bus Service Location"
+                className="w-full h-full"
+              />
+            </div>
+          </div>
+
           {/* Contact Info */}
           <div className="mt-10 pt-8 border-t border-slate-700">
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
@@ -1952,9 +2036,14 @@ export function LandingPage() {
                   <Mail className="w-4 h-4" />
                   Bhinderbusservice@gmail.com
                 </span>
-                <span className="flex items-center gap-2">
-                  <Phone className="w-4 h-4" />
-                  +91 8092000025
+                <span className="flex items-start gap-2.5">
+                  <Phone className="w-4 h-4 mt-1 shrink-0 text-blue-400" />
+                  <div className="grid grid-cols-2 gap-x-5 gap-y-0.5">
+                    <a href="tel:+918092000025" className="text-sm text-gray-400 hover:text-white transition-colors">+91 8092000025</a>
+                    <a href="tel:+919991600025" className="text-sm text-gray-400 hover:text-white transition-colors">+91 9991600025</a>
+                    <a href="tel:+919996021425" className="text-sm text-gray-400 hover:text-white transition-colors">+91 9996021425</a>
+                    <a href="tel:+918481000025" className="text-sm text-gray-400 hover:text-white transition-colors">+91 8481000025</a>
+                  </div>
                 </span>
                 <span className="flex items-center gap-2">
                   <MapPin className="w-4 h-4" />
@@ -1987,7 +2076,15 @@ export function LandingPage() {
               <div className="flex items-center gap-4 text-xs text-gray-500">
                 {["Terms & Conditions", "Privacy Policy", "Refund Policy", "Sitemap"].map(
                   (link) => (
-                    <button key={link} onClick={() => navigate("/")} className="hover:text-white transition-colors">
+                    <button
+                      key={link}
+                      onClick={() => {
+                        if (link === "Terms & Conditions") navigate("/terms");
+                        else if (link === "Privacy Policy") navigate("/privacy");
+                        else navigate("/");
+                      }}
+                      className="hover:text-white transition-colors"
+                    >
                       {link}
                     </button>
                   )

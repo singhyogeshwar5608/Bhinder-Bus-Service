@@ -24,6 +24,7 @@ import {
   PhoneCall,
   User,
   Coffee,
+  Snowflake,
   ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -98,11 +99,13 @@ export function ScheduleDetailPage() {
     "Water Bottle": Droplet, "Reading Light": Lightbulb, "A/C": Wind, "AC": Wind,
     "CCTV": Tv, "GPS Tracking": MapPin, "Emergency Exit": Shield,
     "Fire Extinguisher": Lock, "Snacks": Coffee, "Pillow": Layers,
+    "Mini Freeze": Snowflake, "Coffee": Coffee,
   };
 
   const allPossibleAmenities = [
     "Wi-Fi", "Charging Point", "Blanket", "Water Bottle", "Reading Light",
-    "AC", "CCTV", "GPS Tracking", "Emergency Exit", "Fire Extinguisher"
+    "AC", "CCTV", "GPS Tracking", "Emergency Exit", "Fire Extinguisher",
+    "Mini Freeze", "Coffee"
   ];
 
   const busAmenities = schedule.amenities || [];

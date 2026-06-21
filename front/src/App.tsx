@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, useLocation } from "react-router-dom";
 import { Home as HomeIcon, ChevronRight } from "lucide-react";
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { Header } from "@/components/dashboard/header";
@@ -19,6 +19,8 @@ import { BookingsPage } from "@/components/pages/bookings-page";
 import { BusesPage } from "@/components/pages/buses-page";
 import { RoutesPage } from "@/components/pages/routes-page";
 import { TrackingPage } from "@/components/tracking/tracking-page";
+import { PrivacyPage } from "@/components/pages/privacy-page";
+import { TermsPage } from "@/components/pages/terms-page";
 import { SchedulesPage } from "@/components/pages/schedules-page";
 import { TravelersPage } from "@/components/pages/travelers-page";
 import { DriversPage } from "@/components/pages/drivers-page";
@@ -90,9 +92,20 @@ function AdminLayout() {
   );
 }
 
+function ScrollToTop() {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+
+  return null;
+}
+
 export default function App() {
   return (
     <Router>
+      <ScrollToTop />
       <Routes>
         {/* Public Routes */}
         <Route path="/" element={<><LandingPage /><AdminLoginModal /></>} />
@@ -101,6 +114,8 @@ export default function App() {
         <Route path="/routes" element={<PublicRoutesPage />} />
         <Route path="/buses" element={<PublicBusesPage />} />
         <Route path="/schedule/:id" element={<ScheduleDetailPage />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/terms" element={<TermsPage />} />
 
         {/* Admin Routes */}
         <Route path="/admin" element={<AdminLayout />}>

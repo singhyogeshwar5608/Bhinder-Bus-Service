@@ -33,6 +33,8 @@ import {
   Wifi,
   Clock,
   Tag,
+  Mail,
+  Phone,
 } from "lucide-react";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
@@ -762,11 +764,18 @@ export function PublicBusesPage() {
                 Connecting India's cities with comfortable, safe, and modern travels. Your safety is our absolute priority.
               </p>
               <div className="flex items-center gap-3">
-                {[Facebook, Twitter, Instagram, Youtube].map((Icon, i) => (
+                {[
+                  { icon: Facebook, url: "https://www.facebook.com/share/1BwxTLz5LS/?mibextid=wwXIfr", color: "bg-[#1877F2] hover:shadow-blue-500/30" },
+                  { icon: Twitter, url: "https://x.com/bhinder_bus?s=11", color: "bg-black hover:shadow-gray-500/30" },
+                  { icon: Instagram, url: "https://www.instagram.com/bhinder.bus.service?igsh=Nzhhb3NxMHE5cm10&utm_source=qr", color: "bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 hover:shadow-pink-500/30" },
+                  { icon: Youtube, url: "https://youtube.com/@bhinder_bus_service?si=kd831ChekfW3c2qc", color: "bg-[#FF0000] hover:shadow-red-500/30" },
+                ].map(({ icon: Icon, url, color }, i) => (
                   <a
                     key={i}
-                    href="#"
-                    className="w-9 h-9 rounded-full bg-slate-800 hover:bg-blue-600 flex items-center justify-center transition-colors"
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`w-10 h-10 rounded-full ${color} flex items-center justify-center transition-all duration-300 hover:scale-110 hover:shadow-lg`}
                   >
                     <Icon className="w-4 h-4 text-white" />
                   </a>
@@ -792,7 +801,14 @@ export function PublicBusesPage() {
               <ul className="space-y-2.5 text-sm text-gray-400">
                 {["FAQs", "Contact Us", "Terms & Conditions", "Privacy Policy", "Refund Policy"].map((link) => (
                   <li key={link}>
-                    <button onClick={() => navigate("/")} className="hover:text-white transition-colors">
+                    <button
+                      onClick={() => {
+                        if (link === "Terms & Conditions") navigate("/terms");
+                        else if (link === "Privacy Policy") navigate("/privacy");
+                        else navigate("/");
+                      }}
+                      className="hover:text-white transition-colors"
+                    >
                       {link}
                     </button>
                   </li>
@@ -818,11 +834,49 @@ export function PublicBusesPage() {
             </div>
           </div>
 
-          <div className="border-t border-slate-800 mt-12 pt-6 flex flex-col sm:flex-row items-center justify-between text-xs text-gray-500 gap-4">
-            <p>© 2026 BusBook. All rights reserved. Made for premium journeys.</p>
+          {/* Map */}
+          <div className="mt-12 pt-6 border-t border-slate-800">
+            <div className="w-full h-[200px] sm:h-[250px] rounded-xl overflow-hidden border border-slate-700">
+              <iframe
+                src="https://maps.google.com/maps?q=132/15+Ind.Area+Near+SBI+Bank+Patiala+Road+Cheeka&output=embed"
+                width="100%"
+                height="100%"
+                style={{ border: 0 }}
+                allowFullScreen
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+                title="Bhinder Bus Service Location"
+                className="w-full h-full"
+              />
+            </div>
+          </div>
+
+          <div className="mt-10 pt-6 flex flex-col lg:flex-row lg:items-center justify-between gap-4 text-xs text-gray-400">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-6">
+              <span className="flex items-center gap-2">
+                <Mail className="w-4 h-4 shrink-0" />
+                Bhinderbusservice@gmail.com
+              </span>
+              <span className="flex items-start gap-2.5">
+                <Phone className="w-4 h-4 mt-1 shrink-0 text-blue-400" />
+                <div className="grid grid-cols-2 gap-x-5 gap-y-0.5">
+                  <a href="tel:+918092000025" className="text-sm text-gray-400 hover:text-white transition-colors">+91 8092000025</a>
+                  <a href="tel:+919991600025" className="text-sm text-gray-400 hover:text-white transition-colors">+91 9991600025</a>
+                  <a href="tel:+919996021425" className="text-sm text-gray-400 hover:text-white transition-colors">+91 9996021425</a>
+                  <a href="tel:+918481000025" className="text-sm text-gray-400 hover:text-white transition-colors">+91 8481000025</a>
+                </div>
+              </span>
+            </div>
             <div className="flex items-center gap-2">
               <Shield className="w-4 h-4 text-green-500" />
               <span>Secure Payment Certified</span>
+            </div>
+          </div>
+          <div className="border-t border-slate-800 mt-4 pt-4 flex flex-col sm:flex-row items-center justify-between text-xs text-gray-500 gap-4">
+            <p>© 2026 BusBook. All rights reserved. Made for premium journeys.</p>
+            <div className="flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-gray-500" />
+              <span>132/15, Ind.Area, Near SBI Bank, Patiala Road, Cheeka</span>
             </div>
           </div>
         </div>

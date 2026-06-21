@@ -24,7 +24,7 @@ class SeatLockRepository
         foreach ($seatNumbers as $seatNumber) {
             SeatLock::updateOrCreate(
                 ['schedule_id' => $scheduleId, 'seat_number' => $seatNumber],
-                ['session_id' => $sessionId, 'expires_at' => Carbon::now()->addMinutes(5)]
+                ['session_id' => $sessionId, 'expires_at' => Carbon::now()->addMinutes(15)]
             );
         }
 

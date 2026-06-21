@@ -3,6 +3,7 @@
 namespace App\Repositories;
 
 use App\Models\Bus;
+use App\Models\Seat;
 use Illuminate\Pagination\LengthAwarePaginator;
 
 class BusRepository
@@ -39,7 +40,18 @@ class BusRepository
 
     public function create(array $data): Bus
     {
-        return Bus::create($data);
+        $bus = Bus::create($data);
+
+        for ($i = 1; $i <= $bus->total_seats; $i++) {
+            Seat::create([
+                'bus_id' => $bus->id,
+                'seat_number' => (string) $i,
+                'seat_type' => 'seater',
+                'is_booked' => false,
+            ]);
+        }
+
+        return $bus;
     }
 
     public function update(Bus $bus, array $data): bool

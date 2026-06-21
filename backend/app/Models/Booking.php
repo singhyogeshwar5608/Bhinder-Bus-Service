@@ -20,10 +20,14 @@ class Booking extends Model
         'total_amount',
         'payment_status',
         'booking_status',
+        'cancelled_at',
+        'cancellation_reason',
+        'expected_refund_days',
     ];
 
     protected $casts = [
         'seat_numbers' => 'array',
+        'cancelled_at' => 'datetime',
     ];
 
     public function schedule(): BelongsTo

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -36,12 +36,23 @@ import {
   Map,
   Timer,
   IndianRupee,
+  Download,
+  Share2,
+  AlertTriangle,
+  Receipt,
+  Menu,
+  ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { bookingService } from "@/services/booking.service";
+import api from "@/services/api";
 import { cn, getImageUrl } from "@/lib/utils";
+import { toast } from "@/hooks/use-toast";
+import { downloadTicketPdf, getTicketImageDataUrl } from "@/lib/ticket-generator";
+
+
 
 const formatDisplayDate = (dateStr: string) => {
   if (!dateStr) return "";
@@ -68,6 +79,10 @@ const formatTime12h = (timeStr: string) => {
 };
 
 function RouteDetailsContent({ route, stops, depTime, arrTime, booking }: any) {
+  const boardingPoint = booking?.boarding_point || "";
+  const bpIdx = stops.findIndex((s: any) => s.stop_name === boardingPoint);
+  const boardIdx = bpIdx >= 0 ? bpIdx : (stops.length > 0 ? 0 : -1);
+
   return (
     <div className="space-y-4">
       {/* Route Info Cards */}
@@ -104,29 +119,39 @@ function RouteDetailsContent({ route, stops, depTime, arrTime, booking }: any) {
 
       {/* Timeline */}
       <div className="relative pl-6 space-y-3 before:absolute before:left-[7px] before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200">
-        <div className="relative">
-          <div className="absolute -left-[17px] top-1.5 w-3 h-3 rounded-full border-2 border-emerald-500 bg-emerald-500" />
-          <p className="text-sm font-black text-slate-800">{route?.from_city || booking?.from}</p>
-          <p className="text-[11px] font-bold text-slate-400">{depTime} · Start</p>
+        <div className="relative opacity-40">
+          <div className="absolute -left-[17px] top-1.5 w-1.5 h-px bg-slate-400 mt-[7px]" />
+          <p className="text-sm font-medium text-slate-400">{route?.from_city || booking?.from}</p>
+          <p className="text-[11px] font-bold text-slate-300">{depTime}</p>
         </div>
-        {stops.map((stop: any, i: number) => (
-          <div key={i} className="relative">
-            <div className="absolute -left-[17px] top-1.5 w-3 h-3 rounded-full border-2 border-blue-400 bg-white" />
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-bold text-slate-700">{stop.stop_name}</p>
-                <p className="text-[11px] font-bold text-slate-400">
-                  {formatTime12h(stop.arrival_time)} · {formatTime12h(stop.departure_time)}
-                </p>
-              </div>
-              {stop.fare && (
-                <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100 shrink-0 ml-2">
-                  ₹{Number(stop.fare).toLocaleString("en-IN")}
-                </span>
+        {stops.map((stop: any, i: number) => {
+          const isBeforeBP = i < boardIdx;
+          return (
+            <div key={i} className={`relative ${isBeforeBP ? "opacity-30" : ""}`}>
+              {isBeforeBP ? (
+                <div className="absolute -left-[17px] top-1.5 w-1.5 h-px bg-slate-300 mt-[7px]" />
+              ) : (
+                <div className={`absolute -left-[17px] top-1.5 w-3 h-3 rounded-full border-2 ${i === boardIdx ? "border-emerald-500 bg-emerald-500" : "border-blue-400 bg-white"}`} />
               )}
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className={`text-sm ${isBeforeBP ? "font-medium text-slate-400" : i === boardIdx ? "font-black text-emerald-600" : "font-bold text-slate-700"}`}>
+                    {stop.stop_name}
+                    {i === boardIdx && <span className="ml-1.5 text-[10px] font-black text-emerald-500">· Boarding Point</span>}
+                  </p>
+                  <p className={`text-[11px] font-bold ${isBeforeBP ? "text-slate-300" : "text-slate-400"}`}>
+                    {formatTime12h(stop.arrival_time)} · {formatTime12h(stop.departure_time)}
+                  </p>
+                </div>
+                {stop.fare && (
+                  <span className={`text-[10px] font-black px-2 py-0.5 rounded-md border shrink-0 ml-2 ${isBeforeBP ? "text-slate-300 bg-slate-50 border-slate-200" : "text-emerald-600 bg-emerald-50 border-emerald-100"}`}>
+                    ₹{Number(stop.fare).toLocaleString("en-IN")}
+                  </span>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
         <div className="relative">
           <div className="absolute -left-[17px] top-1.5 w-3 h-3 rounded-full border-2 border-red-400 bg-red-400" />
           <p className="text-sm font-black text-slate-800">{route?.to_city || booking?.to}</p>
@@ -234,33 +259,80 @@ export function TrackingPage() {
   const [error, setError] = useState("");
   const [showRouteModal, setShowRouteModal] = useState(false);
   const [showBusModal, setShowBusModal] = useState(false);
+  const [showTicketModal, setShowTicketModal] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [ticketImageUrl, setTicketImageUrl] = useState("");
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [receiptImageUrl, setReceiptImageUrl] = useState("");
+  const [showActionMenu, setShowActionMenu] = useState(false);
+  const [searchMode, setSearchMode] = useState<"booking" | "mobile">("booking");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [phoneBookings, setPhoneBookings] = useState<any[]>([]);
+  const [selectedPhoneBooking, setSelectedPhoneBooking] = useState(false);
 
   const handleTrack = async (e: React.FormEvent) => {
     e.preventDefault();
-    const id = bookingId.trim().toUpperCase();
-    if (!id || id.length < 3) {
-      setError("Please enter a valid booking number");
-      return;
-    }
     setError("");
     setLoading(true);
     setSearched(true);
-    try {
-      const response = await bookingService.getByNumber(id);
-      const data = response?.data || response;
-      if (data && data.booking_number) {
-        setBooking(data);
-      } else {
-        setBooking(null);
-        setError("Booking not found. Please check the number and try again.");
+
+    if (searchMode === "booking") {
+      const id = bookingId.trim().toUpperCase();
+      if (!id || id.length < 3) {
+        setError("Please enter a valid booking number");
+        setLoading(false);
+        return;
       }
-    } catch (err: any) {
-      setBooking(null);
-      const msg = err?.response?.data?.message || err?.message || "Booking not found. Please check the number and try again.";
-      setError(msg);
-    } finally {
-      setLoading(false);
+      try {
+        const response = await bookingService.getByNumber(id);
+        const data = response?.data || response;
+        if (data && data.booking_number) {
+          setBooking(data);
+          setPhoneBookings([]);
+          setSelectedPhoneBooking(false);
+        } else {
+          setBooking(null);
+          setError("Booking not found. Please check the number and try again.");
+        }
+      } catch (err: any) {
+        setBooking(null);
+        const msg = err?.response?.data?.message || err?.message || "Booking not found. Please check the number and try again.";
+        setError(msg);
+      }
+    } else {
+      const phone = phoneNumber.trim();
+      if (!phone || phone.length < 10) {
+        setError("Please enter a valid 10-digit mobile number");
+        setLoading(false);
+        return;
+      }
+      try {
+        const response = await bookingService.trackByPhone(phone);
+        const data = response?.data || response;
+        if (Array.isArray(data) && data.length > 0) {
+          setPhoneBookings(data);
+          setSelectedPhoneBooking(false);
+          setBooking(data[0]);
+        } else {
+          setPhoneBookings([]);
+          setBooking(null);
+          setError("No bookings found for this mobile number.");
+        }
+      } catch (err: any) {
+        setPhoneBookings([]);
+        setBooking(null);
+        const msg = err?.response?.data?.message || err?.message || "No bookings found for this mobile number.";
+        setError(msg);
+      }
     }
+    setLoading(false);
+  };
+
+  const selectPhoneBooking = (b: any) => {
+    setBooking(b);
+    setSelectedPhoneBooking(true);
   };
 
   const sched = booking?.schedule;
@@ -269,6 +341,126 @@ export function TrackingPage() {
   const stops = route?.stops || [];
   const depTime = formatTime12h(sched?.departure_time);
   const arrTime = formatTime12h(sched?.arrival_time);
+
+  const ticketData = React.useMemo(() => booking ? ({
+    bookingNumber: booking.booking_number,
+    totalAmount: booking.total_amount,
+    customerName: booking.customer_name,
+    customerPhone: booking.customer_phone,
+    customerEmail: booking.customer_email || "",
+    seatNumbers: Array.isArray(booking.seat_numbers) ? booking.seat_numbers : [],
+    passengers: booking.passengers || [],
+    routeFrom: route?.from_city || booking.from,
+    routeTo: route?.to_city || booking.to,
+    boardingLocation: route?.from_city || booking.from,
+    destination: route?.to_city || booking.to,
+    boardingPoint: booking?.boarding_point || (stops.length > 0 ? stops[0]?.stop_name : "") || route?.from_city || booking.from,
+    journeyDate: formatDisplayDate(sched?.journey_date || booking.date),
+    scheduleDate: formatDisplayDate(sched?.journey_date || booking.date),
+    depTime,
+    arrTimeFull: arrTime,
+    busName: bus?.bus_name,
+    busNumber: bus?.bus_number,
+    busType: bus?.bus_type,
+    operator: bus?.operator,
+    distance: route?.distance ? `${route.distance} KM` : "—",
+    fare: sched?.fare || route?.total_fare || (booking as any)?.fare || 0,
+    stops: stops,
+    amenities: bus?.amenities || [],
+  }) : null, [booking, route, sched, bus, stops, depTime, arrTime]);
+
+  useEffect(() => {
+    if (showTicketModal && ticketData) {
+      setTicketImageUrl("");
+      try {
+        const url = getTicketImageDataUrl(ticketData);
+        setTicketImageUrl(url);
+      } catch {
+        setTicketImageUrl("");
+      }
+    }
+  }, [showTicketModal, ticketData]);
+
+  const handleDownloadTicket = () => {
+    if (!ticketData) return;
+    setDownloading(true);
+    try {
+      downloadTicketPdf(ticketData, `ticket-${booking?.booking_number || "booking"}.pdf`);
+      toast({ title: "Ticket Downloaded", description: "Your ticket has been downloaded successfully." });
+    } catch (err: any) {
+      toast({ title: "Download Failed", description: err?.message || "Something went wrong", variant: "destructive" });
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const handleShareTicket = async () => {
+    const shareData = {
+      title: "Bus Ticket",
+      text: `Booking #${booking?.booking_number}\nFrom: ${route?.from_city || booking?.from}\nTo: ${route?.to_city || booking?.to}\nDate: ${formatDisplayDate(sched?.journey_date || booking?.date)}\nSeats: ${(Array.isArray(booking?.seat_numbers) ? booking?.seat_numbers : []).join(", ")}\nTotal: ₹${Number(booking?.total_amount).toLocaleString("en-IN")}`,
+    };
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+      } catch {
+        // User cancelled or error
+      }
+    } else {
+      await navigator.clipboard.writeText(shareData.text);
+      toast({ title: "Copied!", description: "Booking details copied to clipboard." });
+    }
+  };
+
+  const handleCancelBooking = async () => {
+    if (!booking) return;
+    setCancelling(true);
+    try {
+      const response = await bookingService.cancel(booking.booking_number);
+      const data = response?.data || response;
+      if (data?.success) {
+        setBooking(data.booking);
+        setShowCancelConfirm(false);
+        toast({ title: "Booking Cancelled", description: "Your booking has been cancelled and refund initiated." });
+      } else {
+        toast({ title: "Cancellation Failed", description: data?.message || "Unable to cancel booking", variant: "destructive" });
+      }
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || "Unable to cancel booking";
+      toast({ title: "Cancellation Failed", description: msg, variant: "destructive" });
+    } finally {
+      setCancelling(false);
+    }
+  };
+
+  const handleViewReceipt = async () => {
+    if (!booking) return;
+    setShowReceiptModal(true);
+    setReceiptImageUrl("");
+    try {
+      const response = await bookingService.getByNumber(booking.booking_number);
+      const data = response?.data || response;
+      if (data) setBooking(data);
+    } catch {}
+  };
+
+  const handleDownloadReceipt = async () => {
+    if (!booking) return;
+    try {
+      const pdfRes = await api.get(`/bookings/${booking.booking_number}/cancellation-receipt`, {
+        responseType: "blob",
+      });
+      const blob = pdfRes.data;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `cancellation-receipt-${booking.booking_number}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast({ title: "Receipt Downloaded", description: "Cancellation receipt downloaded successfully." });
+    } catch (err: any) {
+      toast({ title: "Download Failed", description: err?.message || "Something went wrong", variant: "destructive" });
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex flex-col">
@@ -286,7 +478,13 @@ export function TrackingPage() {
                 Track <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-cyan-600">My Booking</span>
               </span>
             </div>
-            <div className="w-20" />
+            <div className="w-20 flex items-center justify-end">
+              {searched && booking && (
+                <button onClick={() => setShowActionMenu(true)} className="lg:hidden w-9 h-9 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 hover:bg-blue-100 transition-colors">
+                  <Menu className="w-5 h-5" />
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </header>
@@ -317,7 +515,7 @@ export function TrackingPage() {
               </span>
             </h1>
             <p className="text-sm sm:text-base text-slate-500 font-medium max-w-md mx-auto">
-              Enter your booking number to view your bus booking details and current status.
+              {searchMode === "booking" ? "Enter your booking number to view your bus booking details and current status." : "Enter your mobile number to view all your bus bookings."}
             </p>
           </motion.div>
 
@@ -328,19 +526,47 @@ export function TrackingPage() {
             transition={{ delay: 0.2, duration: 0.5 }}
             className="relative mb-8 sm:mb-10 max-w-2xl mx-auto"
           >
+            {/* Toggle */}
+            <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1 mb-4 max-w-[280px] mx-auto">
+              <button
+                type="button"
+                onClick={() => { setSearchMode("booking"); setError(""); setBooking(null); setSearched(false); }}
+                className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all ${searchMode === "booking" ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+              >
+                <Tag className="w-3.5 h-3.5 inline mr-1" /> Booking No.
+              </button>
+              <button
+                type="button"
+                onClick={() => { setSearchMode("mobile"); setError(""); setBooking(null); setSearched(false); }}
+                className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all ${searchMode === "mobile" ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+              >
+                <Phone className="w-3.5 h-3.5 inline mr-1" /> Mobile No.
+              </button>
+            </div>
+
             <form onSubmit={handleTrack}>
               <div className="flex flex-col sm:flex-row gap-3">
                 <div className="flex-1 relative">
                   <div className="absolute left-4 top-1/2 -translate-y-1/2">
-                    <Tag className="w-5 h-5 text-blue-500" />
+                    {searchMode === "booking" ? <Tag className="w-5 h-5 text-blue-500" /> : <Phone className="w-5 h-5 text-blue-500" />}
                   </div>
-                  <Input
-                    type="text"
-                    value={bookingId}
-                    onChange={(e) => { setBookingId(e.target.value); setError(""); }}
-                    placeholder="Enter your booking number (e.g. BUS-XXXX1234)"
-                    className="w-full h-14 pl-12 pr-4 text-base sm:text-lg font-bold rounded-2xl bg-white border-slate-200 text-slate-800 placeholder:text-slate-400 focus:border-blue-500 focus:ring-blue-500/30 uppercase tracking-wider shadow-sm"
-                  />
+                  {searchMode === "booking" ? (
+                    <Input
+                      type="text"
+                      value={bookingId}
+                      onChange={(e) => { setBookingId(e.target.value); setError(""); }}
+                      placeholder="Enter your booking number (e.g. BUS-XXXX1234)"
+                      className="w-full h-14 pl-12 pr-4 text-base sm:text-lg font-bold rounded-2xl bg-white border-slate-200 text-slate-800 placeholder:text-slate-400 focus:border-blue-500 focus:ring-blue-500/30 uppercase tracking-wider shadow-sm"
+                    />
+                  ) : (
+                    <Input
+                      type="tel"
+                      value={phoneNumber}
+                      onChange={(e) => { setPhoneNumber(e.target.value.replace(/\D/g, "").slice(0, 10)); setError(""); }}
+                      placeholder="Enter your 10-digit mobile number"
+                      className="w-full h-14 pl-12 pr-4 text-base sm:text-lg font-bold rounded-2xl bg-white border-slate-200 text-slate-800 placeholder:text-slate-400 focus:border-blue-500 focus:ring-blue-500/30 shadow-sm"
+                    />
+                  )}
                 </div>
                 <Button
                   type="submit"
@@ -360,6 +586,38 @@ export function TrackingPage() {
               >
                 {error}
               </motion.p>
+            )}
+
+            {/* Phone booking list */}
+            {searchMode === "mobile" && phoneBookings.length > 1 && !selectedPhoneBooking && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mt-4 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden"
+              >
+                <div className="px-4 py-3 border-b border-slate-100">
+                  <p className="text-xs font-black text-slate-600">{phoneBookings.length} bookings found</p>
+                </div>
+                <div className="divide-y divide-slate-100 max-h-64 overflow-y-auto">
+                  {phoneBookings.map((b: any, i: number) => (
+                    <button
+                      key={i}
+                      onClick={() => selectPhoneBooking(b)}
+                      className="w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors flex items-center gap-3"
+                    >
+                      <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                        <Ticket className="w-4 h-4 text-blue-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-slate-800">{b.booking_number}</p>
+                        <p className="text-xs text-slate-500">{b.from || b.schedule?.from || ""} → {b.to || b.schedule?.to || ""}</p>
+                        <p className="text-[10px] text-slate-400">{b.schedule?.journey_date || b.date || ""}</p>
+                      </div>
+                      <ChevronDown className="w-4 h-4 text-slate-400 -rotate-90 shrink-0" />
+                    </button>
+                  ))}
+                </div>
+              </motion.div>
             )}
           </motion.div>
 
@@ -560,9 +818,9 @@ export function TrackingPage() {
                           <p className="text-xs font-bold text-blue-600 mt-0.5">{depTime}</p>
                         </div>
 
-                        {/* Animated Road SVG */}
-                        <div className="flex-1 max-w-[200px] sm:max-w-[260px]">
-                          <svg viewBox="0 0 240 80" className="w-full h-auto" xmlns="http://www.w3.org/2000/svg">
+                        {/* Animated Road with Boarding Point */}
+                        <div className="flex-1 max-w-[200px] sm:max-w-[260px] flex flex-col items-center">
+                          <svg viewBox="0 0 240 100" className="w-full h-auto" xmlns="http://www.w3.org/2000/svg">
                             <defs>
                               <linearGradient id="roadGrad" x1="0" y1="0" x2="0" y2="1">
                                 <stop offset="0%" stopColor="#1e293b" />
@@ -576,69 +834,66 @@ export function TrackingPage() {
                             </defs>
 
                             {/* Road body */}
-                            <rect x="0" y="32" width="240" height="16" rx="2" fill="url(#roadGrad)" />
-                            <rect x="0" y="43" width="240" height="2" fill="url(#dashAnim)" />
+                            <rect x="0" y="45" width="240" height="16" rx="2" fill="url(#roadGrad)" />
+                            <rect x="0" y="56" width="240" height="2" fill="url(#dashAnim)" />
+                            <line x1="0" y1="45" x2="240" y2="45" stroke="#475569" strokeWidth="1" />
+                            <line x1="0" y1="61" x2="240" y2="61" stroke="#475569" strokeWidth="1" />
 
-                            {/* Road edges */}
-                            <line x1="0" y1="32" x2="240" y2="32" stroke="#475569" strokeWidth="1" />
-                            <line x1="0" y1="48" x2="240" y2="48" stroke="#475569" strokeWidth="1" />
-
-                            {/* Bus stop 1 (left) with waiting passengers */}
-                            <g>
-                              <rect x="25" y="20" width="6" height="12" rx="1" fill="#0ea5e9" />
-                              <rect x="24" y="19" width="8" height="2" rx="0.5" fill="#0284c7" />
+                            {/* Boarding Point Marker - Animated */}
+                            <motion.g
+                              initial={{ scale: 0, opacity: 0 }}
+                              animate={{ scale: 1, opacity: 1 }}
+                              transition={{ type: "spring", stiffness: 200, delay: 0.4 }}
+                            >
+                              <rect x="108" y="18" width="24" height="28" rx="4" fill="#10b981" />
+                              <rect x="107" y="17" width="26" height="3" rx="1.5" fill="#059669" />
                               <motion.g
-                                animate={{ y: [0, -2, 0] }}
-                                transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut", delay: 0.3 }}
+                                animate={{ y: [0, -3, 0] }}
+                                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
                               >
-                                <circle cx="23" cy="26" r="2.5" fill="#f97316" />
-                                <rect x="21.5" y="28" width="3" height="4" rx="0.5" fill="#f97316" />
+                                <circle cx="120" cy="28" r="3" fill="#fbbf24" />
+                                <rect x="118" y="31" width="4" height="6" rx="1" fill="#fbbf24" />
                               </motion.g>
-                              <motion.g
-                                animate={{ y: [0, -2, 0] }}
-                                transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut", delay: 0.8 }}
-                              >
-                                <circle cx="31" cy="25" r="2.5" fill="#8b5cf6" />
-                                <rect x="29.5" y="27" width="3" height="5" rx="0.5" fill="#8b5cf6" />
-                              </motion.g>
-                            </g>
-
-                            {/* Bus stop 2 (right) with waiting passenger */}
-                            <g>
-                              <rect x="195" y="20" width="6" height="12" rx="1" fill="#0ea5e9" />
-                              <rect x="194" y="19" width="8" height="2" rx="0.5" fill="#0284c7" />
-                              <motion.g
-                                animate={{ y: [0, -2, 0] }}
-                                transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
-                              >
-                                <circle cx="198" cy="25" r="2.5" fill="#10b981" />
-                                <rect x="196.5" y="27" width="3" height="5" rx="0.5" fill="#10b981" />
-                              </motion.g>
-                            </g>
+                              <text x="120" y="62" textAnchor="middle" fill="#10b981" fontSize="6" fontWeight="bold" fontFamily="system-ui">BOARDING</text>
+                            </motion.g>
 
                             {/* Moving Bus */}
                             <motion.g
                               animate={{ x: [0, 240] }}
                               transition={{ duration: 6, repeat: Infinity, ease: "linear" }}
                             >
-                              <rect x="-32" y="18" width="24" height="14" rx="3" fill="#3b82f6" />
-                              <rect x="-30" y="20" width="8" height="5" rx="1" fill="#93c5fd" opacity="0.5" />
-                              <rect x="-19" y="20" width="8" height="5" rx="1" fill="#93c5fd" opacity="0.5" />
-                              <rect x="-29" y="27" width="18" height="3" rx="0.5" fill="#1e40af" />
-                              <circle cx="-27" cy="34" r="3" fill="#1e293b" />
-                              <circle cx="-27" cy="34" r="1.5" fill="#64748b" />
-                              <circle cx="-12" cy="34" r="3" fill="#1e293b" />
-                              <circle cx="-12" cy="34" r="1.5" fill="#64748b" />
-                              <circle cx="-27" cy="34" r="3" fill="#1e293b" />
-                              <rect x="-7" y="22" width="2" height="8" rx="0.5" fill="#fbbf24" />
+                              <rect x="-32" y="30" width="24" height="14" rx="3" fill="#3b82f6" />
+                              <rect x="-30" y="32" width="8" height="5" rx="1" fill="#93c5fd" opacity="0.5" />
+                              <rect x="-19" y="32" width="8" height="5" rx="1" fill="#93c5fd" opacity="0.5" />
+                              <rect x="-29" y="39" width="18" height="3" rx="0.5" fill="#1e40af" />
+                              <circle cx="-27" cy="46" r="3" fill="#1e293b" />
+                              <circle cx="-27" cy="46" r="1.5" fill="#64748b" />
+                              <circle cx="-12" cy="46" r="3" fill="#1e293b" />
+                              <circle cx="-12" cy="46" r="1.5" fill="#64748b" />
+                              <rect x="-7" y="34" width="2" height="8" rx="0.5" fill="#fbbf24" />
                             </motion.g>
 
                             {/* Duration badge */}
-                            <rect x="88" y="6" width="64" height="16" rx="8" fill="#1e293b" />
-                            <text x="120" y="17" textAnchor="middle" fill="#fbbf24" fontSize="8" fontWeight="bold" fontFamily="system-ui">
+                            <rect x="88" y="2" width="64" height="14" rx="7" fill="#1e293b" />
+                            <text x="120" y="12" textAnchor="middle" fill="#fbbf24" fontSize="7" fontWeight="bold" fontFamily="system-ui">
                               {route?.duration || sched?.duration || "—"}
                             </text>
                           </svg>
+                          {(() => {
+                            const bp = stops.length > 0 ? stops[0].stop_name : "";
+                            return bp ? (
+                              <motion.div
+                                initial={{ opacity: 0, y: -8 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.6, type: "spring", stiffness: 200 }}
+                                className="mt-1 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200"
+                              >
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                <span className="text-[8px] font-black text-emerald-600 uppercase tracking-wider">{bp}</span>
+                                <span className="text-[7px] font-bold text-emerald-400">· Boarding</span>
+                              </motion.div>
+                            ) : null;
+                          })()}
                         </div>
 
                         <div className="flex-1 text-right min-w-0">
@@ -649,6 +904,66 @@ export function TrackingPage() {
                       </div>
                     </div>
                   </motion.div>
+
+                  {/* Mobile Cancel Ticket Button */}
+                  {booking.booking_status === "confirmed" && booking.payment_status === "paid" && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="lg:hidden"
+                    >
+                      <Button
+                        onClick={() => setShowCancelConfirm(true)}
+                        variant="outline"
+                        className="w-full h-11 gap-2 text-sm font-semibold border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                      >
+                        <XCircle className="w-4 h-4" /> Cancel Ticket
+                      </Button>
+                    </motion.div>
+                  )}
+
+                  {/* Cancelled Banner */}
+                  {booking.booking_status === "cancelled" && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="bg-gradient-to-r from-red-50 via-red-50/80 to-orange-50 rounded-2xl border-2 border-red-200 shadow-sm overflow-hidden"
+                    >
+                      <div className="bg-gradient-to-r from-red-500 to-red-600 px-5 py-3">
+                        <div className="flex items-center gap-2">
+                          <XCircle className="w-5 h-5 text-white" />
+                          <span className="text-base font-black text-white">BOOKING CANCELLED</span>
+                        </div>
+                      </div>
+                      <div className="p-5">
+                        <p className="text-sm text-slate-600 mb-4">This booking has been cancelled successfully.</p>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                          <div className="p-3 rounded-xl bg-red-50 border border-red-100">
+                            <p className="text-[9px] font-bold text-red-500 uppercase tracking-wider mb-1">Refund Amount</p>
+                            <p className="text-lg font-black text-red-600">₹{Number(booking.total_amount).toLocaleString("en-IN")}</p>
+                          </div>
+                          <div className="p-3 rounded-xl bg-amber-50 border border-amber-100">
+                            <p className="text-[9px] font-bold text-amber-500 uppercase tracking-wider mb-1">Refund Status</p>
+                            <p className="text-sm font-black text-amber-600 capitalize">{booking.payment?.refund_status || "Initiated"}</p>
+                          </div>
+                          <div className="p-3 rounded-xl bg-blue-50 border border-blue-100">
+                            <p className="text-[9px] font-bold text-blue-500 uppercase tracking-wider mb-1">Expected Refund Time</p>
+                            <p className="text-sm font-black text-blue-600">{booking.expected_refund_days || 5} Working Days</p>
+                            {booking.cancelled_at && <p className="text-[10px] font-bold text-blue-400 mt-0.5">Expected by: {new Date(new Date(booking.cancelled_at).getTime() + 5 * 24 * 60 * 60 * 1000).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</p>}
+                          </div>
+                          <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Cancelled On</p>
+                            <p className="text-sm font-black text-slate-800">{booking.cancelled_at ? new Date(booking.cancelled_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—"}</p>
+                          </div>
+                        </div>
+                        <div className="mt-4">
+                          <Button onClick={handleViewReceipt} variant="secondary" className="w-full h-11 gap-2 text-sm font-semibold">
+                            <Receipt className="w-4 h-4" /> View Cancellation Receipt
+                          </Button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
 
                   {/* Booking Summary (Top) */}
                   <motion.div
@@ -902,6 +1217,64 @@ export function TrackingPage() {
                       </div>
                     </motion.button>
                   </div>
+
+                  {/* Action Buttons - Desktop */}
+                  <div className="hidden lg:grid grid-cols-2 gap-3">
+                    <Button
+                      onClick={() => {
+                        if (booking.booking_status === "cancelled") {
+                          toast({ title: "Not Available", description: "Ticket is no longer available for cancelled bookings.", variant: "destructive" });
+                          return;
+                        }
+                        setShowTicketModal(true);
+                      }}
+                      variant="outline"
+                      className="h-12 gap-2 text-sm font-semibold"
+                    >
+                      <Eye className="w-4 h-4" /> View Ticket
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        if (booking.booking_status === "cancelled") {
+                          toast({ title: "Not Available", description: "Ticket is no longer available for cancelled bookings.", variant: "destructive" });
+                          return;
+                        }
+                        handleDownloadTicket();
+                      }}
+                      disabled={downloading}
+                      variant="outline"
+                      className="h-12 gap-2 text-sm font-semibold"
+                    >
+                      {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                      {downloading ? "Downloading..." : "Download Ticket"}
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        if (booking.booking_status === "cancelled") {
+                          toast({ title: "Not Available", description: "Ticket is no longer available for cancelled bookings.", variant: "destructive" });
+                          return;
+                        }
+                        handleShareTicket();
+                      }}
+                      variant="outline"
+                      className="h-12 gap-2 text-sm font-semibold"
+                    >
+                      <Share2 className="w-4 h-4" /> Share Ticket
+                    </Button>
+                    {booking.booking_status === "cancelled" ? (
+                      <Button onClick={handleViewReceipt} variant="outline" className="h-12 gap-2 text-sm font-semibold">
+                        <Receipt className="w-4 h-4" /> Cancellation Receipt
+                      </Button>
+                    ) : (booking.booking_status === "confirmed" && booking.payment_status === "paid") ? (
+                      <Button onClick={() => setShowCancelConfirm(true)} variant="destructive" className="h-12 gap-2 text-sm font-semibold">
+                        <XCircle className="w-4 h-4" /> Cancel Ticket
+                      </Button>
+                    ) : (
+                      <Button disabled variant="outline" className="h-12 gap-2 text-sm font-semibold opacity-40 cursor-not-allowed">
+                        <XCircle className="w-4 h-4" /> Cancel Ticket
+                      </Button>
+                    )}
+                  </div>
                 </motion.div>
               ) : null}
             </AnimatePresence>
@@ -944,6 +1317,332 @@ export function TrackingPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Cancel Confirmation Dialog */}
+      <Dialog open={showCancelConfirm} onOpenChange={setShowCancelConfirm}>
+        <DialogContent className="max-w-[95%] sm:max-w-[420px] rounded-2xl bg-white p-0 overflow-hidden">
+          <div className="bg-gradient-to-r from-red-500 to-red-600 px-5 py-4 text-center">
+            <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center mx-auto mb-2">
+              <AlertTriangle className="w-6 h-6 text-white" />
+            </div>
+            <DialogTitle className="text-lg font-black text-white">Cancel Ticket?</DialogTitle>
+            <p className="text-sm text-red-100 mt-1">Are you sure you want to cancel this booking?</p>
+          </div>
+          <div className="p-5">
+            <p className="text-sm text-slate-600 text-center mb-2">Your refund will be initiated automatically.</p>
+            <p className="text-xs text-slate-400 text-center mb-5">Refund Amount: <strong className="text-slate-800">₹{Number(booking?.total_amount || 0).toLocaleString("en-IN")}</strong></p>
+            <div className="flex gap-3">
+              <Button
+                onClick={() => setShowCancelConfirm(false)}
+                className="flex-1 h-11 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm"
+              >
+                Keep Booking
+              </Button>
+              <Button
+                onClick={handleCancelBooking}
+                disabled={cancelling}
+                className="flex-1 h-11 rounded-xl bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-bold text-sm"
+              >
+                {cancelling ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+                {cancelling ? "Cancelling..." : "Yes, Cancel Ticket"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Cancellation Receipt Modal */}
+      <Dialog open={showReceiptModal} onOpenChange={setShowReceiptModal}>
+        <DialogContent className="max-w-[95%] sm:max-w-[500px] rounded-2xl bg-white p-0 overflow-hidden max-h-[90vh]">
+          <div className="bg-gradient-to-r from-red-600 to-red-700 px-5 py-4 flex items-center gap-3 sticky top-0 z-10">
+            <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
+              <Receipt className="w-4 h-4 text-white" />
+            </div>
+            <DialogTitle className="text-base font-black text-white flex-1">Cancellation Receipt</DialogTitle>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleDownloadReceipt}
+                className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center hover:bg-white/30 transition-colors"
+                title="Download Receipt PDF"
+              >
+                <Download className="w-4 h-4 text-white" />
+              </button>
+              <button onClick={() => setShowReceiptModal(false)} className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center hover:bg-white/30 transition-colors">
+                <X className="w-4 h-4 text-white" />
+              </button>
+            </div>
+          </div>
+          <div className="p-5 overflow-y-auto max-h-[calc(90vh-72px)]">
+            {booking && (
+              <div className="space-y-5">
+                <div className="text-center pb-4 border-b-2 border-dashed border-red-200">
+                  <h2 className="text-xl font-black text-slate-900 tracking-tight">BHINDER BUS SERVICE</h2>
+                  <p className="text-sm font-bold text-red-600 mt-1">Cancellation Receipt</p>
+                  <span className="inline-block mt-2 px-4 py-1 rounded-full bg-red-100 text-red-700 text-xs font-black uppercase tracking-wider border border-red-200">
+                    CANCELLED
+                  </span>
+                </div>
+
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Booking Information</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      ["Booking Number", booking.booking_number],
+                      ["Cancellation ID", "CAN-" + (booking.booking_number?.slice(-8) || "")],
+                      ["Booking Status", "CANCELLED", "text-red-600"],
+                      ["Passengers", String(booking.passenger_count || (booking.passengers ? booking.passengers.length : 1))],
+                      ["Seats", (Array.isArray(booking.seat_numbers) ? booking.seat_numbers : []).length + " Seats"],
+                      ["Refund Status", (booking.payment?.refund_status || "Initiated").charAt(0).toUpperCase() + (booking.payment?.refund_status || "Initiated").slice(1), "text-amber-600"],
+                      ["Journey Date", formatDisplayDate(sched?.journey_date || booking.date)],
+                      ["Cancellation Date", booking.cancelled_at ? new Date(booking.cancelled_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—"],
+                      ["Refund Amount", "₹" + Number(booking.total_amount).toLocaleString("en-IN"), "text-red-600 font-black"],
+                    ].map(([label, value, cls], i) => (
+                      <div key={i} className="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">{label}</p>
+                        <p className={"text-sm font-bold text-slate-800 " + (cls || "")}>{value}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Passenger Information</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Passenger Name</p>
+                      <p className="text-sm font-bold text-slate-800">{booking.customer_name}</p>
+                    </div>
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Mobile Number</p>
+                      <p className="text-sm font-bold text-slate-800">{booking.customer_phone}</p>
+                    </div>
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Email Address</p>
+                      <p className="text-sm font-bold text-slate-800 truncate">{booking.customer_email || "—"}</p>
+                    </div>
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Seats</p>
+                      <p className="text-sm font-bold text-slate-800">{(Array.isArray(booking.seat_numbers) ? booking.seat_numbers : []).join(", ") || "—"}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Travel Information</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="col-span-2 p-3 rounded-xl bg-slate-50 border border-slate-100">
+                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Route</p>
+                      <p className="text-sm font-bold text-slate-800">{route?.from_city || booking.from} → {route?.to_city || booking.to}</p>
+                    </div>
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Bus Name</p>
+                      <p className="text-sm font-bold text-slate-800">{bus?.bus_name || bus?.operator || "—"}</p>
+                    </div>
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Bus Number</p>
+                      <p className="text-sm font-bold text-slate-800">{bus?.bus_number || "—"}</p>
+                    </div>
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Departure Time</p>
+                      <p className="text-sm font-bold text-slate-800">{depTime || "—"}</p>
+                    </div>
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Arrival Time</p>
+                      <p className="text-sm font-bold text-slate-800">{arrTime || "—"}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Refund Information</p>
+                  <div className="p-4 rounded-xl bg-red-50 border border-red-100">
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <p className="text-[9px] font-bold text-red-500 uppercase tracking-wider mb-1">Refund Amount</p>
+                        <p className="text-lg font-black text-red-600">₹{Number(booking.total_amount).toLocaleString("en-IN")}</p>
+                      </div>
+                      <div>
+                        <p className="text-[9px] font-bold text-amber-500 uppercase tracking-wider mb-1">Refund Status</p>
+                        <p className="text-sm font-black text-amber-600 capitalize">{booking.payment?.refund_status || "Initiated"}</p>
+                      </div>
+                      <div>
+                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Initiated Date</p>
+                        <p className="text-sm font-black text-slate-800">{booking.cancelled_at ? new Date(booking.cancelled_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—"}</p>
+                      </div>
+                      <div>
+                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Expected Time</p>
+                        <p className="text-sm font-black text-slate-800">{booking.expected_refund_days || 5} Working Days</p>
+                      </div>
+                      <div>
+                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Expected Refund Date</p>
+                        <p className="text-sm font-black text-slate-800">{booking.cancelled_at ? new Date(new Date(booking.cancelled_at).getTime() + (booking.expected_refund_days || 5) * 24 * 60 * 60 * 1000).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—"}</p>
+                      </div>
+                      {booking.payment?.refund_id && <div>
+                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Refund ID</p>
+                        <p className="text-sm font-black text-slate-800 truncate" title={booking.payment.refund_id}>{booking.payment.refund_id}</p>
+                      </div>}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-xl bg-amber-50 border border-amber-200">
+                  <p className="text-xs text-amber-800 leading-relaxed">
+                    Your booking has been cancelled successfully. Refund has been initiated and is expected to be credited to the original payment source within <strong>2-5 working days</strong> depending on your payment method and bank processing time.
+                  </p>
+                </div>
+
+                <div className="pt-2 text-center">
+                  <Button
+                    onClick={handleDownloadReceipt}
+                    className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-bold rounded-xl px-6 h-11"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Download Cancellation Receipt PDF
+                  </Button>
+                </div>
+
+                <div className="text-center pt-4 border-t border-slate-100">
+                  <p className="text-[11px] text-slate-400">Contact: 8092000025 | Email: bhinderbusservice@gmail.com</p>
+                  <p className="text-xs font-bold text-slate-500 mt-1">Thank you for travelling with Bhinder Bus Service</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Ticket Modal */}
+      <Dialog open={showTicketModal} onOpenChange={setShowTicketModal}>
+        <DialogContent className="max-w-[95%] sm:max-w-[600px] rounded-2xl bg-white p-0 overflow-hidden max-h-[90vh]">
+          <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-5 py-4 flex items-center gap-3 sticky top-0 z-10">
+            <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
+              <Ticket className="w-4 h-4 text-white" />
+            </div>
+            <DialogTitle className="text-base font-black text-white flex-1">Your Ticket</DialogTitle>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleDownloadTicket}
+                disabled={downloading}
+                className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center hover:bg-white/30 transition-colors disabled:opacity-50"
+                title="Download PDF"
+              >
+                {downloading ? <Loader2 className="w-4 h-4 text-white animate-spin" /> : <Download className="w-4 h-4 text-white" />}
+              </button>
+              <button onClick={() => setShowTicketModal(false)} className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center hover:bg-white/30 transition-colors">
+                <X className="w-4 h-4 text-white" />
+              </button>
+            </div>
+          </div>
+          <div className="p-5 overflow-y-auto max-h-[calc(90vh-72px)] flex justify-center">
+            {ticketImageUrl ? (
+              <img
+                src={ticketImageUrl}
+                alt="Ticket"
+                className="w-full h-auto rounded-lg shadow-sm"
+              />
+            ) : (
+              <div className="flex items-center justify-center py-16">
+                <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Mobile Action Menu */}
+      {searched && booking && (
+        <>
+          <AnimatePresence>
+            {showActionMenu && (
+              <>
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setShowActionMenu(false)}
+                  className="lg:hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
+                />
+                <motion.div
+                  initial={{ y: "100%", opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  exit={{ y: "100%", opacity: 0 }}
+                  transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                  className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl shadow-2xl p-6 pb-10"
+                >
+                  <div className="flex items-center justify-between mb-5">
+                    <h3 className="text-lg font-black text-slate-800">Actions</h3>
+                    <button onClick={() => setShowActionMenu(false)} className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center">
+                      <X className="w-5 h-5 text-slate-500" />
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Button
+                      onClick={() => {
+                        if (booking.booking_status === "cancelled") {
+                          toast({ title: "Not Available", description: "Ticket is no longer available for cancelled bookings.", variant: "destructive" });
+                          setShowActionMenu(false);
+                          return;
+                        }
+                        setShowActionMenu(false);
+                        setShowTicketModal(true);
+                      }}
+                      variant="outline"
+                      className="h-14 gap-2 text-sm font-semibold"
+                    >
+                      <Eye className="w-4 h-4" /> View Ticket
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        if (booking.booking_status === "cancelled") {
+                          toast({ title: "Not Available", description: "Ticket is no longer available for cancelled bookings.", variant: "destructive" });
+                          setShowActionMenu(false);
+                          return;
+                        }
+                        setShowActionMenu(false);
+                        handleDownloadTicket();
+                      }}
+                      disabled={downloading}
+                      variant="outline"
+                      className="h-14 gap-2 text-sm font-semibold"
+                    >
+                      {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                      {downloading ? "Downloading..." : "Download Ticket"}
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        if (booking.booking_status === "cancelled") {
+                          toast({ title: "Not Available", description: "Ticket is no longer available for cancelled bookings.", variant: "destructive" });
+                          setShowActionMenu(false);
+                          return;
+                        }
+                        setShowActionMenu(false);
+                        handleShareTicket();
+                      }}
+                      variant="outline"
+                      className="h-14 gap-2 text-sm font-semibold"
+                    >
+                      <Share2 className="w-4 h-4" /> Share Ticket
+                    </Button>
+                    {booking.booking_status === "cancelled" ? (
+                      <Button onClick={() => { setShowActionMenu(false); handleViewReceipt(); }} variant="outline" className="h-14 gap-2 text-sm font-semibold">
+                        <Receipt className="w-4 h-4" /> Cancellation Receipt
+                      </Button>
+                    ) : (booking.booking_status === "confirmed" && booking.payment_status === "paid") ? (
+                      <Button onClick={() => { setShowActionMenu(false); setShowCancelConfirm(true); }} variant="destructive" className="h-14 gap-2 text-sm font-semibold">
+                        <XCircle className="w-4 h-4" /> Cancel Ticket
+                      </Button>
+                    ) : (
+                      <Button disabled variant="outline" className="h-14 gap-2 text-sm font-semibold opacity-40 cursor-not-allowed">
+                        <XCircle className="w-4 h-4" /> Cancel Ticket
+                      </Button>
+                    )}
+                  </div>
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
+        </>
+      )}
     </div>
   );
 }

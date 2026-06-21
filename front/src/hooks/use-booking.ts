@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { bookingService } from '@/services/booking.service';
 import { travelerService } from '@/services/traveler.service';
 
-export const useBookings = (params?: { page?: number; search?: string; status?: string; date_from?: string; date_to?: string }) => {
+export const useBookings = (params?: { page?: number; search?: string; status?: string; date_from?: string; date_to?: string; route_id?: string; bus_id?: string; journey_date?: string }) => {
   return useQuery({
     queryKey: ['bookings', params],
     queryFn: async () => {

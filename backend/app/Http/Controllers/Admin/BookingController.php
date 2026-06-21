@@ -22,7 +22,7 @@ class BookingController extends Controller
 
     public function index(Request $request)
     {
-        $filters = $request->only(['search', 'status', 'per_page', 'date_from', 'date_to']);
+        $filters = $request->only(['search', 'status', 'per_page', 'date_from', 'date_to', 'route_id', 'bus_id', 'journey_date']);
         $bookings = $this->bookingRepository->getAll($filters);
         $stats = $this->bookingRepository->getStats();
 

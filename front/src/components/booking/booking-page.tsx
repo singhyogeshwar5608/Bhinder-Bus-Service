@@ -31,6 +31,8 @@ import {
   Smartphone,
   Ticket,
   Download,
+  Phone,
+  Mail,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -323,6 +325,7 @@ export function BookingPage() {
   const unmountedRef = useRef(false);
 
   useEffect(() => {
+    unmountedRef.current = false;
     return () => { unmountedRef.current = true; };
   }, []);
 
@@ -686,7 +689,15 @@ export function BookingPage() {
       ctx.save(); ctx.beginPath(); ctx.rect(RX + 2, ry - 42, RWR - 4, 100); ctx.clip();
       ry = drawStatus(ctx, RX, RWR, ry, C); ctx.restore();
 
-      const footY = Math.max(ly, ry) + 16;
+      const beforeFootY = Math.max(ly, ry) + 16;
+      const disclaimerY = beforeFootY + 10;
+      ctx.fillStyle = "#94A3B8";
+      ctx.font = "11px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText("Please note that bus, route, driver, boarding/drop points, and travel", w / 2, disclaimerY + 12);
+      ctx.fillText("schedules may be modified due to operational requirements or unforeseen circumstances.", w / 2, disclaimerY + 26);
+
+      const footY = disclaimerY + 40;
       ctx.fillStyle = C.blue;
       ctx.fillRect(0, footY, w, 60);
       ctx.fillStyle = C.muted;
@@ -802,7 +813,13 @@ export function BookingPage() {
       ctx.save(); ctx.beginPath(); ctx.rect(RX + 2, ry - 42, RWR - 4, 100); ctx.clip();
       ry = drawStatus(ctx, RX, RWR, ry, C); ctx.restore();
 
-      const footY = Math.max(ly, ry) + 16;
+      const beforeFootY = Math.max(ly, ry) + 16;
+      const disclaimerY = beforeFootY + 10;
+      ctx.fillStyle = "#94A3B8"; ctx.font = "11px Arial"; ctx.textAlign = "center";
+      ctx.fillText("Please note that bus, route, driver, boarding/drop points, and travel", w / 2, disclaimerY + 12);
+      ctx.fillText("schedules may be modified due to operational requirements or unforeseen circumstances.", w / 2, disclaimerY + 26);
+
+      const footY = disclaimerY + 40;
       ctx.fillStyle = C.blue; ctx.fillRect(0, footY, w, 60);
       ctx.fillStyle = C.muted; ctx.font = "13px Arial"; ctx.textAlign = "center";
       ctx.fillText("Contact: 8092000025  |  Email: bhinderbusservice@gmail.com", w / 2, footY + 24);
@@ -947,65 +964,78 @@ export function BookingPage() {
       return y + 26;
     }
     const bpIdx = stops.findIndex((s: any) => s.stop_name === bp);
-    let startIdx = bpIdx >= 0 ? bpIdx : 0;
-    const showStops = stops.slice(Math.max(0, startIdx), startIdx + 5);
-    const firstIdx = Math.max(0, startIdx);
+    const boardIdx = bpIdx >= 0 ? bpIdx : 0;
 
-    // Vertical line background (grey full)
+    // Vertical line background
     ctx.strokeStyle = C.border;
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(bx, y + 14);
-    ctx.lineTo(bx, y + showStops.length * 32 - 6);
+    ctx.lineTo(bx, y + stops.length * 32 - 6);
     ctx.stroke();
 
-    showStops.forEach((s: any, i: number) => {
-      const globalIdx = firstIdx + i;
-      const isAfter = globalIdx >= startIdx;
+    stops.forEach((s: any, i: number) => {
+      const isBefore = i < boardIdx;
       const isSel = s.stop_name === bp;
-      const dotCol = isAfter ? C.accent : C.border;
 
-      // Vertical segment highlighted
       if (i > 0) {
-        ctx.strokeStyle = isAfter ? C.accent : C.border;
-        ctx.lineWidth = isAfter ? 2.5 : 1.5;
+        ctx.strokeStyle = isBefore ? C.border : C.accent;
+        ctx.lineWidth = isBefore ? 1 : 2;
         ctx.beginPath();
         ctx.moveTo(bx, y + 14);
         ctx.lineTo(bx, y + 32);
         ctx.stroke();
       }
 
-      // Circle
-      ctx.beginPath();
-      ctx.arc(bx, y + 14, isSel ? 6 : 5, 0, Math.PI * 2);
-      ctx.fillStyle = isSel ? C.accent : dotCol;
-      ctx.fill();
-      if (isSel) {
-        ctx.beginPath(); ctx.arc(bx, y + 14, 2.5, 0, Math.PI * 2); ctx.fillStyle = C.white; ctx.fill();
-      }
+      if (isBefore) {
+        ctx.fillStyle = C.muted;
+        ctx.font = "13px Arial";
+        ctx.textAlign = "left";
+        ctx.fillText(t(ctx, s.stop_name, maxW - 70), bx + 14, y + 18);
+        const time = s.departure_time || s.arrival_time || "";
+        if (time) {
+          ctx.textAlign = "right";
+          ctx.font = "13px Arial";
+          ctx.fillStyle = "#CBD5E1";
+          ctx.fillText(time, LX + LWR - 70, y + 18);
+        }
+        const fare = Number(s.fare || 0);
+        if (fare > 0) {
+          ctx.textAlign = "right";
+          ctx.font = "13px Arial";
+          ctx.fillStyle = "#CBD5E1";
+          ctx.fillText("₹" + fare.toLocaleString("en-IN"), LX + LWR - 14, y + 18);
+        }
+      } else {
+        const dotCol = isSel ? C.accent : C.accent;
+        ctx.beginPath();
+        ctx.arc(bx, y + 14, isSel ? 6 : 5, 0, Math.PI * 2);
+        ctx.fillStyle = dotCol;
+        ctx.fill();
+        if (isSel) {
+          ctx.beginPath(); ctx.arc(bx, y + 14, 2.5, 0, Math.PI * 2); ctx.fillStyle = C.white; ctx.fill();
+        }
 
-      // Stop name (colorful)
-      ctx.textAlign = "left";
-      ctx.font = isSel ? "bold 13px Arial" : "13px Arial";
-      ctx.fillStyle = isAfter ? (isSel ? C.accent : C.blue) : C.muted;
-      ctx.fillText(t(ctx, s.stop_name, maxW - 70), bx + 14, y + 18);
+        ctx.textAlign = "left";
+        ctx.font = isSel ? "bold 13px Arial" : "13px Arial";
+        ctx.fillStyle = isSel ? C.accent : C.blue;
+        ctx.fillText(t(ctx, s.stop_name, maxW - 70), bx + 14, y + 18);
 
-      // Time (black)
-      const time = s.departure_time || s.arrival_time || "";
-      if (time) {
-        ctx.textAlign = "right";
-        ctx.font = "bold 13px Arial";
-        ctx.fillStyle = "#000000";
-        ctx.fillText(time, LX + LWR - 70, y + 18);
-      }
+        const time = s.departure_time || s.arrival_time || "";
+        if (time) {
+          ctx.textAlign = "right";
+          ctx.font = "bold 13px Arial";
+          ctx.fillStyle = "#000000";
+          ctx.fillText(time, LX + LWR - 70, y + 18);
+        }
 
-      // Fare (colorful)
-      const fare = Number(s.fare || 0);
-      if (fare > 0) {
-        ctx.textAlign = "right";
-        ctx.font = "bold 13px Arial";
-        ctx.fillStyle = C.success;
-        ctx.fillText("₹" + fare.toLocaleString("en-IN"), LX + LWR - 14, y + 18);
+        const fare = Number(s.fare || 0);
+        if (fare > 0) {
+          ctx.textAlign = "right";
+          ctx.font = "bold 13px Arial";
+          ctx.fillStyle = C.success;
+          ctx.fillText("₹" + fare.toLocaleString("en-IN"), LX + LWR - 14, y + 18);
+        }
       }
 
       y += 32;
@@ -1283,8 +1313,11 @@ export function BookingPage() {
 
   // Generate seat layout dynamically using the layout service
   const bus = seatDataResponse?.schedule?.bus;
+  const effectiveSeats = seats.length > 0
+    ? seats
+    : SeatLayoutGeneratorService.generateMockSeats(bus?.total_seats || 52);
   const busRows = SeatLayoutGeneratorService.parseLayout(
-    seats,
+    effectiveSeats,
     bus?.layout_type || "2+3 Sleeper",
     bus?.last_row_seats || 6,
     bus?.left_seats_per_row,
@@ -2271,9 +2304,26 @@ export function BookingPage() {
           <div className="flex items-center gap-2">
             <img src="/logo.png" alt="Logo" className="h-7 object-contain" />
           </div>
-          <p className="text-[10px] text-slate-500 font-semibold">
-            © 2026 BusBook. All rights reserved. | Terms | Privacy | Refund Policy
-          </p>
+          <div className="text-[10px] text-slate-500 font-semibold flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
+            <span>© 2026 BusBook.</span>
+            <button onClick={() => navigate("/terms")} className="hover:text-white underline underline-offset-2">Terms</button>
+            <button onClick={() => navigate("/privacy")} className="hover:text-white underline underline-offset-2">Privacy</button>
+            <span>Refund Policy</span>
+            <span className="hidden sm:inline">|</span>
+            <span className="flex items-center gap-1">
+              <Phone className="w-3 h-3" />
+              <a href="tel:+918092000025" className="hover:text-white">8092000025</a>
+            </span>
+            <span className="flex items-center gap-1">
+              <a href="tel:+919991600025" className="hover:text-white">9991600025</a>
+            </span>
+            <span className="flex items-center gap-1">
+              <a href="tel:+919996021425" className="hover:text-white">9996021425</a>
+            </span>
+            <span className="flex items-center gap-1">
+              <a href="tel:+918481000025" className="hover:text-white">8481000025</a>
+            </span>
+          </div>
           <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-semibold">
             <Shield className="w-4 h-4 text-emerald-500 fill-emerald-500/10" />
             <span>Secure & Verified Checkout</span>

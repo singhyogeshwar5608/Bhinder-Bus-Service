@@ -955,6 +955,8 @@ function AddBusForm({ onCancel, editData }: { onCancel: () => void, editData?: a
                   <SelectItem value="Water Bottle">Water Bottle</SelectItem>
                   <SelectItem value="Snacks">Snacks</SelectItem>
                   <SelectItem value="TV/Entertainment">TV/Entertainment</SelectItem>
+                  <SelectItem value="Mini Freeze">Mini Freeze</SelectItem>
+                  <SelectItem value="Coffee">Coffee</SelectItem>
                 </SelectContent>
               </Select>
               {amenities.length > 0 && (
@@ -1007,11 +1009,12 @@ function AddBusForm({ onCancel, editData }: { onCancel: () => void, editData?: a
                 <SelectItem value="bharat-benz">BharatBenz</SelectItem>
                 <SelectItem value="eicher">Eicher</SelectItem>
                 <SelectItem value="scania">Scania</SelectItem>
+                <SelectItem value="force">Force</SelectItem>
               </SelectContent>
             </Select>
           </FormField>
-          <FormField label="Model" required helperText="e.g. B11R, AC Sleeper">
-            <Input name="model" defaultValue={editData?.model} placeholder="Enter model name" className="h-10 text-sm border-gray-200 focus:border-blue-300" required />
+          <FormField label="Model" helperText="e.g. B11R, AC Sleeper">
+            <Input name="model" defaultValue={editData?.model} placeholder="Enter model name" className="h-10 text-sm border-gray-200 focus:border-blue-300" />
           </FormField>
           <FormField label="Year of Manufacturing" required>
             <DatePickerField

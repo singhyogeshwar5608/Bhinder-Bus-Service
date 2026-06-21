@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
 @theme {
+  --font-sans: 'Nunito', ui-sans-serif, system-ui, sans-serif;
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
 
@@ -50,6 +51,17 @@
     }
   }
   --animate-bounce-slow: bounce-slow 2s infinite;
+
+  @keyframes marquee {
+    0% {
+      transform: translateX(0);
+    }
+    100% {
+      transform: translateX(-50%);
+    }
+  }
+  --animate-marquee: marquee 30s linear infinite;
+  --animate-marquee-fast: marquee 8s linear infinite;
 }
 
 @layer base {

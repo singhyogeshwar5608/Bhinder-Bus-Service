@@ -46,6 +46,7 @@ Route::prefix('bookings')->group(function () {
     Route::get('/track/{phone}', [PublicBookingController::class, 'trackByPhone']);
     Route::post('/{booking_number}/email-ticket', [PublicBookingController::class, 'emailTicket']);
     Route::get('/{booking_number}', [PublicBookingController::class, 'getBooking']);
+    Route::get('/{booking_number}/cancellation-receipt', [PublicBookingController::class, 'cancellationReceipt']);
     Route::post('/cancel', [PublicBookingController::class, 'cancel']);
 });
 Route::post('/bookings/create', [PublicBookingController::class, 'create']);

@@ -34,6 +34,24 @@ class BookingRepository
             $query->whereDate('created_at', '<=', $filters['date_to']);
         }
 
+        if (isset($filters['route_id'])) {
+            $query->whereHas('schedule.route', function ($q) use ($filters) {
+                $q->where('id', $filters['route_id']);
+            });
+        }
+
+        if (isset($filters['bus_id'])) {
+            $query->whereHas('schedule.bus', function ($q) use ($filters) {
+                $q->where('id', $filters['bus_id']);
+            });
+        }
+
+        if (isset($filters['journey_date'])) {
+            $query->whereHas('schedule', function ($q) use ($filters) {
+                $q->whereDate('journey_date', $filters['journey_date']);
+            });
+        }
+
         return $query->latest()->paginate($filters['per_page'] ?? 10);
     }
 

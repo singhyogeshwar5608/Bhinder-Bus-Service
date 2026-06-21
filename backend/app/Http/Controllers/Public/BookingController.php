@@ -28,18 +28,27 @@ class BookingController extends Controller
         $schedule = Schedule::with('bus')->findOrFail($id);
         $sessionId = $request->query('session_id');
 
-        // Fetch all seats for the schedule's bus
         $seats = Seat::where('bus_id', $schedule->bus_id)->get();
 
-        // Fetch active locks for this schedule
+        if ($seats->isEmpty() && $schedule->bus) {
+            for ($i = 1; $i <= $schedule->bus->total_seats; $i++) {
+                Seat::create([
+                    'bus_id' => $schedule->bus_id,
+                    'seat_number' => (string) $i,
+                    'seat_type' => 'seater',
+                    'is_booked' => false,
+                ]);
+            }
+            $seats = Seat::where('bus_id', $schedule->bus_id)->get();
+        }
+
         $locks = SeatLock::where('schedule_id', $id)
             ->where('expires_at', '>', Carbon::now())
             ->get()
             ->keyBy('seat_number');
 
-        // Fetch booked seats for this schedule
         $bookedSeats = Booking::where('schedule_id', $id)
-            ->where('booking_status', '!=', 'cancelled')
+            ->where('booking_status', 'confirmed')
             ->get()
             ->pluck('seat_numbers')
             ->flatten()
@@ -91,9 +100,8 @@ class BookingController extends Controller
 
         try {
             return DB::transaction(function () use ($scheduleId, $seatNumbers, $sessionId) {
-                // 1. Check if any seat is already booked
                 $bookedSeats = Booking::where('schedule_id', $scheduleId)
-                    ->where('booking_status', '!=', 'cancelled')
+                    ->where('booking_status', 'confirmed')
                     ->get()
                     ->pluck('seat_numbers')
                     ->flatten()
@@ -108,7 +116,6 @@ class BookingController extends Controller
                     }
                 }
 
-                // 2. Check if any seat is already locked by another session
                 $existingLocks = SeatLock::where('schedule_id', $scheduleId)
                     ->whereIn('seat_number', $seatNumbers)
                     ->where('expires_at', '>', Carbon::now())
@@ -122,13 +129,12 @@ class BookingController extends Controller
                     ], 400);
                 }
 
-                // 3. Create or update locks (expires in 5 minutes)
                 foreach ($seatNumbers as $seatNumber) {
                     SeatLock::updateOrCreate(
                         ['schedule_id' => $scheduleId, 'seat_number' => $seatNumber],
                         [
                             'session_id' => $sessionId,
-                            'expires_at' => Carbon::now()->addMinutes(5)
+                            'expires_at' => Carbon::now()->addMinutes(15)
                         ]
                     );
                 }
@@ -154,26 +160,17 @@ class BookingController extends Controller
             'session_id' => 'required|string',
         ]);
 
-        $scheduleId = $request->schedule_id;
-        $seatNumbers = $request->seat_numbers;
-        $sessionId = $request->session_id;
-
-        SeatLock::where('schedule_id', $scheduleId)
-            ->whereIn('seat_number', $seatNumbers)
-            ->where('session_id', $sessionId)
+        SeatLock::where('schedule_id', $request->schedule_id)
+            ->whereIn('seat_number', $request->seat_numbers)
+            ->where('session_id', $request->session_id)
             ->delete();
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Seats unlocked successfully'
-        ]);
+        return response()->json(['success' => true, 'message' => 'Seats unlocked successfully']);
     }
 
     public function getSeatsStatus(Request $request)
     {
-        $request->validate([
-            'schedule_id' => 'required|exists:schedules,id',
-        ]);
+        $request->validate(['schedule_id' => 'required|exists:schedules,id']);
 
         $scheduleId = $request->schedule_id;
         $sessionId = $request->query('session_id');
@@ -188,7 +185,7 @@ class BookingController extends Controller
             ->keyBy('seat_number');
 
         $bookedSeats = Booking::where('schedule_id', $scheduleId)
-            ->where('booking_status', '!=', 'cancelled')
+            ->where('booking_status', 'confirmed')
             ->get()
             ->pluck('seat_numbers')
             ->flatten()
@@ -210,15 +207,10 @@ class BookingController extends Controller
                 }
             }
 
-            return [
-                'seat_number' => $seatNumber,
-                'status' => $status,
-            ];
+            return ['seat_number' => $seatNumber, 'status' => $status];
         });
 
-        return response()->json([
-            'seats' => $seatStatuses
-        ]);
+        return response()->json(['seats' => $seatStatuses]);
     }
 
     public function create(Request $request)
@@ -238,13 +230,12 @@ class BookingController extends Controller
             'session_id' => 'required|string',
         ]);
 
-        $scheduleId = $validated['schedule_id'];
-        $seatNumbers = $validated['seat_numbers'];
-        $sessionId = $validated['session_id'];
-
         try {
-            $booking = DB::transaction(function () use ($validated, $scheduleId, $seatNumbers, $sessionId) {
-                // 1. Verify locks exist, belong to current session, and are not expired
+            $booking = DB::transaction(function () use ($validated) {
+                $scheduleId = $validated['schedule_id'];
+                $seatNumbers = $validated['seat_numbers'];
+                $sessionId = $validated['session_id'];
+
                 $locksCount = SeatLock::where('schedule_id', $scheduleId)
                     ->whereIn('seat_number', $seatNumbers)
                     ->where('session_id', $sessionId)
@@ -252,19 +243,34 @@ class BookingController extends Controller
                     ->count();
 
                 if ($locksCount !== count($seatNumbers)) {
-                    throw new \Exception("Lock expired or invalid. Please select seats again.");
+                    $bookedSeats = Booking::where('schedule_id', $scheduleId)
+                        ->where('booking_status', 'confirmed')
+                        ->get()
+                        ->pluck('seat_numbers')
+                        ->flatten()
+                        ->toArray();
+
+                    foreach ($seatNumbers as $sn) {
+                        if (in_array($sn, $bookedSeats)) {
+                            throw new \Exception("Seat $sn is already booked. Please select another seat.");
+                        }
+                    }
+
+                    foreach ($seatNumbers as $sn) {
+                        SeatLock::updateOrCreate(
+                            ['schedule_id' => $scheduleId, 'seat_number' => $sn],
+                            ['session_id' => $sessionId, 'expires_at' => Carbon::now()->addMinutes(15)]
+                        );
+                    }
                 }
 
-                // 2. Setup values for creation (Service will override with default repository config)
                 $validated['booking_number'] = 'BBS' . date('Y') . strtoupper(Str::random(6));
                 $validated['payment_status'] = 'pending';
                 $validated['booking_status'] = 'pending';
                 $validated['passenger_count'] = count($validated['passengers']);
 
-                // 3. Create booking with passengers using service
                 $booking = $this->bookingService->createBooking($validated);
 
-                // 4. Release seat locks
                 SeatLock::where('schedule_id', $scheduleId)
                     ->whereIn('seat_number', $seatNumbers)
                     ->where('session_id', $sessionId)
@@ -298,11 +304,46 @@ class BookingController extends Controller
     {
         $request->validate(['booking_number' => 'required|string']);
 
-        if ($this->bookingService->cancelBooking($request->booking_number)) {
-            return response()->json(['message' => 'Booking cancelled successfully']);
+        try {
+            $result = $this->bookingService->cancelBooking($request->booking_number);
+            return response()->json($result);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 400);
+        }
+    }
+
+    public function cancellationReceipt(Request $request, $booking_number)
+    {
+        $booking = $this->bookingService->getBookingByNumber($booking_number);
+        if (!$booking) {
+            return response()->json(['message' => 'Booking not found'], 404);
         }
 
-        return response()->json(['message' => 'Unable to cancel booking'], 400);
+        if ($booking->booking_status !== 'cancelled') {
+            return response()->json(['message' => 'Booking is not cancelled'], 400);
+        }
+
+        $payment = $booking->payment;
+
+        $refundData = [
+            'refund_id' => $payment?->refund_id ?? '—',
+            'refund_amount' => $payment?->refund_amount ?? $booking->total_amount,
+            'refund_status' => $payment?->refund_status ?? 'initiated',
+        ];
+
+        try {
+            $pdfContent = $this->bookingService->generateCancellationReceipt($booking, $refundData);
+
+            return response($pdfContent, 200, [
+                'Content-Type' => 'application/pdf',
+                'Content-Disposition' => 'attachment; filename="cancellation-receipt-' . $booking->booking_number . '.pdf"',
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Failed to generate receipt: ' . $e->getMessage()], 500);
+        }
     }
 
     public function emailTicket(Request $request, $booking_number)
@@ -317,11 +358,9 @@ class BookingController extends Controller
             return response()->json(['message' => 'Booking not found'], 404);
         }
 
-        $email = $request->email;
-
         try {
-            Mail::raw('Your bus ticket is attached below. Thank you for travelling with Bhinder Bus Service.', function ($message) use ($email, $booking, $request) {
-                $message->to($email)
+            Mail::raw('Your bus ticket is attached below. Thank you for travelling with Bhinder Bus Service.', function ($message) use ($request, $booking) {
+                $message->to($request->email)
                     ->subject('Your Ticket - ' . $booking['booking_number'] . ' | Bhinder Bus Service')
                     ->from(config('mail.from.address'), config('mail.from.name'));
 
@@ -334,7 +373,7 @@ class BookingController extends Controller
                 }
             });
 
-            return response()->json(['message' => 'Ticket sent successfully to ' . $email]);
+            return response()->json(['message' => 'Ticket sent successfully to ' . $request->email]);
         } catch (\Exception $e) {
             return response()->json([
                 'message' => 'Failed to send email',

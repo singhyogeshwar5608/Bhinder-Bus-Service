@@ -1,0 +1,23 @@
+# Frontend
+frontend/node_modules
+frontend/dist
+frontend/build
+frontend/.env
+
+# Laravel
+backend/vendor
+backend/.env
+backend/storage/*.key
+backend/public/storage
+backend/bootstrap/cache/*.php
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode
+.idea

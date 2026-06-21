@@ -39,7 +39,7 @@ export const bookingService = {
     api.get(`/bookings/track/${phone}`),
 
   // Admin
-  getAll: (params?: { page?: number; search?: string; status?: string; date_from?: string; date_to?: string }) =>
+  getAll: (params?: { page?: number; search?: string; status?: string; date_from?: string; date_to?: string; route_id?: string; bus_id?: string; journey_date?: string }) =>
     api.get('/admin/bookings', { params }),
 
   getById: (id: number) =>

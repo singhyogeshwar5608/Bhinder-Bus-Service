@@ -21,6 +21,9 @@ import {
   Wallet,
   Landmark,
   Banknote,
+  Bus,
+  Route,
+  X,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -44,6 +47,8 @@ import { cn } from "@/lib/utils";
 import { useBookings } from "@/hooks/use-booking";
 import { Skeleton } from "@/components/ui/skeleton";
 import api from "@/services/api";
+import { routeService } from "@/services/route.service";
+import { busService } from "@/services/bus.service";
 
 const avatarColors = [
   "bg-blue-50 text-blue-600",
@@ -94,9 +99,25 @@ export function BookingsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterDate, setFilterDate] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [exporting, setExporting] = useState(false);
+
+  // New filter states
+  const [routeFilter, setRouteFilter] = useState("");
+  const [busFilter, setBusFilter] = useState("");
+  const [journeyDateFilter, setJourneyDateFilter] = useState("");
+  const [routes, setRoutes] = useState<any[]>([]);
+  const [buses, setBuses] = useState<any[]>([]);
+
+  useEffect(() => {
+    routeService.getAll(1, { per_page: 1000 }).then((res) => {
+      setRoutes(res.data?.data ?? []);
+    }).catch(() => {});
+    busService.getAll({ per_page: 1000 }).then((res) => {
+      const busData = Array.isArray(res.data) ? res.data : (res.data?.data ?? []);
+      setBuses(busData);
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchQuery), 400);
@@ -107,8 +128,9 @@ export function BookingsPage() {
     page: currentPage,
     search: debouncedSearch || undefined,
     status: statusFilter !== "all" ? statusFilter : undefined,
-    date_from: filterDate || undefined,
-    date_to: filterDate || undefined,
+    route_id: routeFilter || undefined,
+    bus_id: busFilter || undefined,
+    journey_date: journeyDateFilter || undefined,
   });
 
   const stats = data?.stats ?? { total: 0, confirmed: 0, pending: 0, cancelled: 0, refunded: 0 };
@@ -159,7 +181,7 @@ export function BookingsPage() {
       const pageW = pdf.internal.pageSize.getWidth();
       const pageH = pdf.internal.pageSize.getHeight();
 
-      const cols = ["Booking ID", "Customer", "Phone", "Route", "Journey", "Seats", "Amount", "Status", "Booked On"];
+      const cols = ["Booking ID", "Customer", "Phone", "Route", "Journey", "Seat No.", "Amount", "Status", "Booked On"];
       const colW = [28, 28, 26, 34, 26, 18, 22, 22, 28];
       const rowH = 6;
       let y = 10;
@@ -259,36 +281,81 @@ export function BookingsPage() {
       </div>
 
       {/* Filter Section */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 p-4 bg-gray-50/80 rounded-xl border border-gray-100">
-        <div className="relative flex-1 min-w-0">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search by Booking ID, Name, Phone, Email..."
-            value={searchQuery}
-            onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-            className="w-full h-9 pl-9 pr-3 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 transition-all"
-          />
+      <div className="flex flex-col gap-3 p-4 bg-gray-50/80 rounded-xl border border-gray-100">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-wrap">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search by Booking ID, Name, Phone, Email..."
+              value={searchQuery}
+              onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+              className="w-full h-9 pl-9 pr-3 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 transition-all"
+            />
+          </div>
+          <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setCurrentPage(1); }}>
+            <SelectTrigger className="w-full sm:w-[140px] h-9 text-sm bg-white border-gray-200">
+              <SelectValue placeholder="All Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="confirmed">Confirmed</SelectItem>
+              <SelectItem value="pending">Pending</SelectItem>
+              <SelectItem value="cancelled">Cancelled</SelectItem>
+              <SelectItem value="refunded">Refunded</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-        <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setCurrentPage(1); }}>
-          <SelectTrigger className="w-full sm:w-[140px] h-9 text-sm bg-white border-gray-200">
-            <SelectValue placeholder="All Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="confirmed">Confirmed</SelectItem>
-            <SelectItem value="pending">Pending</SelectItem>
-            <SelectItem value="cancelled">Cancelled</SelectItem>
-            <SelectItem value="refunded">Refunded</SelectItem>
-          </SelectContent>
-        </Select>
-        <input
-          type="date"
-          value={filterDate}
-          onChange={(e) => { setFilterDate(e.target.value); setCurrentPage(1); }}
-          className="h-9 px-3 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-          title="Filter by booking date"
-        />
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-wrap">
+          <div className="relative flex-1 min-w-[180px]">
+            <Route className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <select
+              value={routeFilter}
+              onChange={(e) => { setRouteFilter(e.target.value); setCurrentPage(1); }}
+              className="w-full h-9 pl-9 pr-3 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 transition-all cursor-pointer"
+            >
+              <option value="">All Routes</option>
+              {routes.map((r: any) => (
+                <option key={r.id} value={r.id}>{r.from_city} → {r.to_city}</option>
+              ))}
+            </select>
+          </div>
+          <div className="relative flex-1 min-w-[180px]">
+            <Bus className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <select
+              value={busFilter}
+              onChange={(e) => { setBusFilter(e.target.value); setCurrentPage(1); }}
+              className="w-full h-9 pl-9 pr-3 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 transition-all cursor-pointer"
+            >
+              <option value="">All Buses</option>
+              {buses.map((b: any) => (
+                <option key={b.id} value={b.id}>{b.bus_name} ({b.bus_number})</option>
+              ))}
+            </select>
+          </div>
+          <input
+            type="date"
+            value={journeyDateFilter}
+            onChange={(e) => { setJourneyDateFilter(e.target.value); setCurrentPage(1); }}
+            className="h-9 px-3 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            title="Filter by date"
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-9 px-3 text-gray-500 hover:text-gray-700"
+            onClick={() => {
+              setRouteFilter("");
+              setBusFilter("");
+              setJourneyDateFilter("");
+              setStatusFilter("all");
+              setSearchQuery("");
+              setCurrentPage(1);
+            }}
+          >
+            <X className="w-4 h-4 mr-1" /> Reset
+          </Button>
+        </div>
       </div>
 
       {/* Bookings Table */}
@@ -301,7 +368,7 @@ export function BookingsPage() {
                 <TableHead className="text-xs font-semibold text-gray-500 uppercase tracking-wider py-3.5 px-4">User</TableHead>
                 <TableHead className="text-xs font-semibold text-gray-500 uppercase tracking-wider py-3.5 px-4">Route</TableHead>
                 <TableHead className="text-xs font-semibold text-gray-500 uppercase tracking-wider py-3.5 px-4">Journey Date</TableHead>
-                <TableHead className="text-xs font-semibold text-gray-500 uppercase tracking-wider py-3.5 px-4">Seats</TableHead>
+                <TableHead className="text-xs font-semibold text-gray-500 uppercase tracking-wider py-3.5 px-4">Seat No.</TableHead>
                 <TableHead className="text-xs font-semibold text-gray-500 uppercase tracking-wider py-3.5 px-4">Amount</TableHead>
                 <TableHead className="text-xs font-semibold text-gray-500 uppercase tracking-wider py-3.5 px-4">Payment</TableHead>
                 <TableHead className="text-xs font-semibold text-gray-500 uppercase tracking-wider py-3.5 px-4">Status</TableHead>
